@@ -1,4 +1,10 @@
+use agentlang::bench::{load_tasks, run_suite, NoopRepairer, OracleRepairer};
 use agentlang::check_source;
+use std::path::PathBuf;
+
+fn benchmarks_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benchmarks")
+}
 
 #[test]
 fn clean_program_has_no_diagnostics() {
@@ -85,6 +91,69 @@ fn parse_error_is_structured() {
     assert_eq!(diags.len(), 1);
     assert_eq!(diags[0].code, "PARSE_ERROR");
     assert_eq!(diags[0].file, "test.ag");
+}
+
+#[test]
+fn multiple_parse_errors_in_different_functions() {
+    let src = r#"
+function a() -> i32 {
+    return 1
+}
+
+function b() -> i32 {
+    return 2
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.len() >= 2,
+        "expected multiple parse errors, got {:?}",
+        diags
+    );
+    assert!(diags.iter().all(|d| d.code == "PARSE_ERROR"));
+}
+
+#[test]
+fn multiple_parse_errors_in_one_function() {
+    let src = r#"
+function main() -> i32 {
+    let x = ;
+    let y = ;
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.len() >= 2,
+        "expected multiple parse errors, got {:?}",
+        diags
+    );
+    assert!(diags.iter().all(|d| d.code == "PARSE_ERROR"));
+}
+
+#[test]
+fn error_in_struct_does_not_abort_later_functions() {
+    let src = r#"
+struct Bad {
+    x:
+}
+
+function main() -> i32 {
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "PARSE_ERROR"),
+        "got {:?}",
+        diags
+    );
+    // A well-formed later function should not itself produce errors.
+    assert!(
+        !diags.iter().any(|d| d.symbol.as_deref() == Some("main")),
+        "unexpected error attributed to main: {:?}",
+        diags
+    );
 }
 
 #[test]
@@ -367,4 +436,38 @@ function main() -> i32 {
 "#;
     let diags = check_source(src, "test.ag");
     assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn benchmark_suite_resolves_with_oracle() {
+    let tasks = load_tasks(&benchmarks_dir()).expect("load benchmarks");
+    assert!(!tasks.is_empty(), "expected at least one benchmark task");
+
+    let mut repairer = OracleRepairer;
+    let report = run_suite(&tasks, &mut repairer, 5);
+
+    assert_eq!(report.total, tasks.len());
+    assert_eq!(
+        report.unresolved, 0,
+        "oracle repairer should resolve every task: {:?}",
+        report.tasks
+    );
+    assert!(
+        report.first_pass_ok >= 1,
+        "expected the baseline task to already be clean"
+    );
+    assert_eq!(report.fixed, report.total);
+}
+
+#[test]
+fn noop_repairer_leaves_broken_tasks_unresolved() {
+    let tasks = load_tasks(&benchmarks_dir()).expect("load benchmarks");
+
+    let mut repairer = NoopRepairer;
+    let report = run_suite(&tasks, &mut repairer, 5);
+
+    // Every task except the already-clean baseline should remain broken.
+    assert_eq!(report.first_pass_ok, 1);
+    assert_eq!(report.unresolved, report.total - report.first_pass_ok);
+    assert_eq!(report.avg_iterations, 0.0);
 }

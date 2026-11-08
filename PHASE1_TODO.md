@@ -41,7 +41,7 @@
 - [x] Parse type expressions (named, generic like `Result<T, E>`, `Array<T>`)
 - [x] Parse `struct` and `enum` declarations
 - [x] Parse `Enum::Variant` paths, method calls, closures, and the `?` operator
-- [ ] Error recovery: report a diagnostic and recover to the next statement (currently stops at first error)
+- [x] Error recovery: report a diagnostic and recover to the next declaration/statement
 - [ ] Snapshot tests: source → AST
 
 ## Milestone 3 — Static Type Checking
@@ -91,16 +91,36 @@
 - [x] Implement `agent build` stub (compiles to a no-op / IR placeholder for now)
 - [x] `agent check` always emits JSON on failure
 - [x] End-to-end test: broken `.ag` file → JSON → simulated fix → clean check
-- [ ] Write an LLM-driven test harness (feed diagnostic JSON to a model, verify self-repair loop)
+- [x] Write a self-repair benchmark harness (`agent bench`) with a pluggable `Repairer` trait
+- [ ] Implement a real LLM `Repairer` adapter (currently `Oracle`/`Noop` baselines)
 
 ---
 
 ## Phase 1 Exit Criteria
 
 - [ ] All above milestones complete
-- [ ] A first-attempt-compile benchmark baseline recorded (see "Day one" metrics)
+- [x] A first-attempt-compile benchmark baseline recorded (see "Baseline" below)
 - [x] `agent check` usable by an autonomous agent with zero human intervention
 - [x] Documented JSON diagnostic schema in `docs/diagnostics.md`
+
+---
+
+## Baseline (recorded 2026-11-09)
+
+`agent bench benchmarks` over six tasks (`benchmarks/01_ok_baseline` … `06_invalid_try`):
+
+| Metric | Value |
+| --- | --- |
+| Tasks | 6 |
+| First-pass clean | 1 / 6 (the intentional baseline task) |
+| Resolved with oracle repair | 6 / 6 |
+| Mean repair iterations (non-clean tasks) | 1.0 |
+| Remaining unresolved | 0 |
+
+The oracle repairer is an upper bound: it proves the harness loop converges and
+that every broken task is genuinely repairable from its diagnostics. The next
+measurement is the same corpus driven by a real LLM `Repairer`, which will yield
+the meaningful first-attempt-compile and iterations-to-green numbers.
 
 ---
 

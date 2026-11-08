@@ -58,6 +58,10 @@ cargo run -- check examples/structs.ag
 cargo run -- check examples/option.ag
 cargo run -- check examples/result.ag
 cargo run -- check examples/map.ag
+
+# Self-repair benchmark suite (oracle baseline by default)
+cargo run -- bench
+cargo run -- bench benchmarks --repairer none --max-iters 3
 ```
 
 ### Phase 1 language subset
@@ -92,7 +96,23 @@ Example diagnostic output:
 ]
 ```
 
-See [`docs/diagnostics.md`](docs/diagnostics.md) for the diagnostic schema and [`PHASE1_TODO.md`](PHASE1_TODO.md) for current progress.
+See [`docs/diagnostics.md`](docs/diagnostics.md) for the diagnostic schema, [`docs/benchmarks.md`](docs/benchmarks.md) for the self-repair harness, and [`PHASE1_TODO.md`](PHASE1_TODO.md) for current progress.
+
+## Self-repair benchmarks
+
+The core thesis is that an agent can read the JSON diagnostics, repair the
+program, and converge to a clean check without human help. `agent bench` makes
+that measurable: each task is a broken `.ag` program plus a known-good version,
+and a pluggable `Repairer` proposes fixes until the check passes.
+
+```bash
+cargo run -- bench benchmarks
+```
+
+The default `OracleRepairer` returns the known-good source, which validates the
+loop and records an upper-bound baseline. `--repairer none` runs first-pass only.
+A real LLM adapter implements the same `Repairer` trait. See
+[`docs/benchmarks.md`](docs/benchmarks.md).
 
 ## Documentation
 
@@ -100,6 +120,7 @@ See [`docs/diagnostics.md`](docs/diagnostics.md) for the diagnostic schema and [
 - [`Overview.txt`](Overview.txt) — original design text
 - [`PHASE1_TODO.md`](PHASE1_TODO.md) — Phase 1 task list and status
 - [`docs/diagnostics.md`](docs/diagnostics.md) — machine-readable diagnostic contract
+- [`docs/benchmarks.md`](docs/benchmarks.md) — self-repair benchmark harness and how to add tasks
 
 ## Contributing
 
@@ -114,4 +135,4 @@ Open an issue to discuss any of these.
 
 ## License
 
-Not yet specified.
+MIT — see [`LICENSE`](LICENSE).

@@ -4,10 +4,17 @@ use crate::ast::*;
 use crate::diagnostic::Diagnostic;
 use crate::lexer::{Span, Token, TokenKind};
 
+enum Decl {
+    Struct(StructDecl),
+    Enum(EnumDecl),
+    Function(FunctionDecl),
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     file: String,
+    diags: Vec<Diagnostic>,
 }
 
 impl Parser {
@@ -16,6 +23,7 @@ impl Parser {
             tokens,
             pos: 0,
             file: file.to_string(),
+            diags: Vec::new(),
         }
     }
 
@@ -53,26 +61,116 @@ impl Parser {
         Diagnostic::error("PARSE_ERROR", &self.file, self.peek_span(), message)
     }
 
-    pub fn parse_module(&mut self) -> Result<Module, Diagnostic> {
+    /// Parse a whole module, recovering from errors so that multiple
+    /// independent problems can be reported in a single pass.
+    pub fn parse_module(&mut self) -> (Module, Vec<Diagnostic>) {
         let mut structs = Vec::new();
         let mut enums = Vec::new();
         let mut functions = Vec::new();
+
         while !self.at(&TokenKind::Eof) {
-            if self.at(&TokenKind::Struct) {
-                structs.push(self.parse_struct()?);
-            } else if self.at(&TokenKind::Enum) {
-                enums.push(self.parse_enum()?);
-            } else if self.at(&TokenKind::Function) {
-                functions.push(self.parse_function()?);
-            } else {
-                return Err(self.err_here("Expected a `struct`, `enum`, or `function` declaration"));
+            if !self.at(&TokenKind::Struct)
+                && !self.at(&TokenKind::Enum)
+                && !self.at(&TokenKind::Function)
+            {
+                let diag = self.err_here("Expected a `struct`, `enum`, or `function` declaration");
+                self.diags.push(diag);
+                self.advance();
+                continue;
+            }
+
+            let start = self.pos;
+            match self.parse_declaration() {
+                Ok(Decl::Struct(decl)) => structs.push(decl),
+                Ok(Decl::Enum(decl)) => enums.push(decl),
+                Ok(Decl::Function(decl)) => functions.push(decl),
+                Err(diag) => {
+                    self.diags.push(diag);
+                    self.recover_to_next_decl();
+                    if self.pos == start {
+                        self.advance();
+                    }
+                }
             }
         }
-        Ok(Module {
-            structs,
-            enums,
-            functions,
-        })
+
+        (
+            Module {
+                structs,
+                enums,
+                functions,
+            },
+            std::mem::take(&mut self.diags),
+        )
+    }
+
+    fn parse_declaration(&mut self) -> Result<Decl, Diagnostic> {
+        if self.at(&TokenKind::Struct) {
+            Ok(Decl::Struct(self.parse_struct()?))
+        } else if self.at(&TokenKind::Enum) {
+            Ok(Decl::Enum(self.parse_enum()?))
+        } else if self.at(&TokenKind::Function) {
+            Ok(Decl::Function(self.parse_function()?))
+        } else {
+            Err(self.err_here("Expected a `struct`, `enum`, or `function` declaration"))
+        }
+    }
+
+    /// Skip to the next top-level declaration keyword, tracking brace depth so
+    /// that keywords inside a malformed body are not mistaken for declarations.
+    fn recover_to_next_decl(&mut self) {
+        let mut depth: i32 = 0;
+        while !self.at(&TokenKind::Eof) {
+            if depth == 0
+                && (self.at(&TokenKind::Function)
+                    || self.at(&TokenKind::Struct)
+                    || self.at(&TokenKind::Enum))
+            {
+                break;
+            }
+            match self.peek() {
+                TokenKind::LBrace => {
+                    depth += 1;
+                    self.advance();
+                }
+                TokenKind::RBrace => {
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                    self.advance();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+    }
+
+    /// Skip to the next `;` or the closing `}` of the current block, tracking
+    /// nested braces so recovery stays inside the function body.
+    fn recover_to_stmt_boundary(&mut self) {
+        let mut depth: i32 = 0;
+        while !self.at(&TokenKind::Eof) {
+            match self.peek() {
+                TokenKind::Semicolon if depth == 0 => {
+                    self.advance();
+                    break;
+                }
+                TokenKind::RBrace if depth == 0 => break,
+                TokenKind::Let | TokenKind::Return if depth == 0 => break,
+                TokenKind::LBrace => {
+                    depth += 1;
+                    self.advance();
+                }
+                TokenKind::RBrace => {
+                    depth -= 1;
+                    self.advance();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
     }
 
     fn parse_struct(&mut self) -> Result<StructDecl, Diagnostic> {
@@ -201,7 +299,17 @@ impl Parser {
         self.expect(&TokenKind::LBrace, "`{`")?;
         let mut body = Vec::new();
         while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-            body.push(self.parse_stmt()?);
+            let start = self.pos;
+            match self.parse_stmt() {
+                Ok(stmt) => body.push(stmt),
+                Err(diag) => {
+                    self.diags.push(diag);
+                    self.recover_to_stmt_boundary();
+                    if self.pos == start {
+                        self.advance();
+                    }
+                }
+            }
         }
         self.expect(&TokenKind::RBrace, "`}`")?;
 

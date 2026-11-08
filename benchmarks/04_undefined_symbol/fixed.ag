@@ -1,0 +1,4 @@
+function main() -> i32 {
+    let missing = 7;
+    return missing;
+}

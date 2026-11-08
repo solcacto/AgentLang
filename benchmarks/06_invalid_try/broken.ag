@@ -1,0 +1,8 @@
+function parse_value(input: i32) -> Result<i32, String> {
+    return Result::Ok(input);
+}
+
+function compute() -> i32 {
+    let value = parse_value(10)?;
+    return value;
+}
