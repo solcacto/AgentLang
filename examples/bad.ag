@@ -1,0 +1,5 @@
+// This file is intentionally broken: it returns a String where an i32 is
+// required. `agent check` should emit a TYPE_MISMATCH diagnostic with a repair.
+function main() -> i32 {
+    return "not a number";
+}

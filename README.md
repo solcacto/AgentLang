@@ -30,11 +30,56 @@ The project is being built in five phases. Start with a small, fully functional 
 - **Phase 4 — Production compiler:** LLVM backend, native executables, WASM backend, standard library, package manager
 - **Phase 5 — Verification ecosystem:** Contract system, SMT integration, automatic test generation, change impact analysis
 
-## Getting Started
+## Building
 
-See [`Overview.md`](Overview.md) for the full design document, including the eight essential features, CLI commands (`agent check`, `agent build`, `agent test`, `agent audit`, `agent verify`, `agent impact`, `agent diff`, `agent patch`, `agent commit-check`), architecture, and proposed feature priorities.
+Requires a stable Rust toolchain.
 
-See [`Overview.txt`](Overview.txt) for the original design text.
+```bash
+cargo build
+cargo test
+```
+
+## Usage
+
+The Phase 1 walking skeleton provides `agent check`, which lexes, parses, type-checks, and emits structured JSON diagnostics:
+
+```bash
+# A valid program
+cargo run -- check examples/hello.ag
+# OK: examples/hello.ag passed all checks
+
+# A program with a type error → JSON diagnostics on stdout, exit code 1
+cargo run -- check examples/bad.ag
+```
+
+Example diagnostic output:
+
+```json
+[
+  {
+    "severity": "error",
+    "code": "TYPE_MISMATCH",
+    "file": "examples/bad.ag",
+    "line": 4,
+    "col": 5,
+    "expected": "i32",
+    "received": "String",
+    "message": "Return type mismatch: expected `i32`, found `String`",
+    "repair": { "type": "replace_expression", "expected_type": "i32" },
+    "repairable": true,
+    "affects_other_files": false
+  }
+]
+```
+
+See [`docs/diagnostics.md`](docs/diagnostics.md) for the diagnostic schema and [`PHASE1_TODO.md`](PHASE1_TODO.md) for current progress.
+
+## Documentation
+
+- [`Overview.md`](Overview.md) — full design document (features, CLI commands, architecture, priorities)
+- [`Overview.txt`](Overview.txt) — original design text
+- [`PHASE1_TODO.md`](PHASE1_TODO.md) — Phase 1 task list and status
+- [`docs/diagnostics.md`](docs/diagnostics.md) — machine-readable diagnostic contract
 
 ## Contributing
 

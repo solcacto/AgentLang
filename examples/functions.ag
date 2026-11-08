@@ -1,0 +1,8 @@
+function add(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+function main() -> i32 {
+    let total = add(19, 23);
+    return total;
+}
