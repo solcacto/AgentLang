@@ -1,0 +1,693 @@
+Designing a programming language where the primary programmer is an advanced LLM, rather than a human.
+
+I would approach this quite differently from designing another general-purpose language.
+
+Most existing languages were designed around human limitations:
+- Humans make mistakes typing syntax.
+- Humans need readable abstractions.
+- Humans struggle with complex type systems.
+- Humans need IDEs to navigate large projects.
+- Humans are relatively slow at writing repetitive code.
+Advanced LLMs have a different set of limitations:
+- They can generate enormous amounts of code very quickly, but can introduce subtle inconsistencies.
+- They can hallucinate functions, APIs and dependencies.
+- They can lose track of architectural decisions across large projects.
+- They can make changes that unintentionally break unrelated functionality.
+- They can generate syntactically valid code that is logically or security-wise incorrect.
+I would design a language that assumes code will be generated, modified, tested and maintained by autonomous agents.
+
+Here's how I would approach it.
+1. The fundamental concept
+AgentLang
+Proposed language concept
+A programming language built for machine-generated software.
+A statically typed, memory-safe, compiled language with explicit permissions, machine-readable diagnostics, incremental verification and deterministic behaviour.
+Security first
+
+Capability-based permissions and memory safety.
+
+Continuous verification
+
+Catch problems as code is generated.
+
+Performance
+
+Native compilation and efficient execution.
+
+Agent-native tooling
+
+Structured code manipulation and diagnostics.
+
+
+
+My proposed design would combine some of the best ideas from:
+Language	What I would borrow
+Rust	Ownership, borrowing, memory safety
+Go	Simplicity, fast compilation, concurrency
+Zig	Explicit behaviour, predictable execution
+TypeScript	Accessible type system and developer experience
+Erlang	Fault isolation and concurrency
+Haskell	Pure functions and functional safety
+WebAssembly	Portable sandboxed execution
+
+However, I wouldn't simply combine these languages. I would change the underlying development model.
+2. Design principle: optimise for LLM generation
+This is probably the most important part.
+
+I would make the language deliberately restrictive.
+
+For example:
+- One obvious way to perform a particular operation.
+- No implicit type conversions.
+- No hidden side effects.
+- No ambiguous operator behaviour.
+- No implicit dependencies.
+- No global mutable state by default.
+- No complicated inheritance systems.
+- Explicit function signatures.
+- Explicit error handling.
+- Explicit permissions.
+Why?
+
+An LLM doesn't necessarily benefit from having ten different ways of accomplishing the same thing.
+
+In fact, reducing the number of valid approaches makes generated code more predictable.
+
+Consider these two examples.
+
+Typical flexible language:
+def get_user(id):    user = database.find(id)    if user:        return user["name"]    return None
+
+
+
+This leaves a lot of ambiguity:
+- What is the type of id?
+- What does find return?
+- Can the database operation fail?
+- Is user["name"] guaranteed to exist?
+- What permissions does this function have?
+Proposed AgentLang:
+function get_user(
+    id: UserId
+) -> Result<Option<UserName>, DatabaseError>
+    effects(database.read)
+{
+    let user = database.find(id)?;
+    return user.map(|u| u.name);
+}
+
+
+The second example communicates substantially more information to both the compiler and the LLM.
+
+The compiler can validate the function's behaviour without needing to execute it.
+3. The features I consider essential
+I'd build the language around eight major systems.
+A. A strict but approachable type system
+Essential
+I would use static typing everywhere.
+
+Every variable, function, parameter and return value should have a known type.
+
+But I wouldn't make the type system unnecessarily complicated.
+
+Core types:
+- Integer types (i8, i32, i64, etc.)
+- Floating point (f32, f64)
+- Boolean
+- String
+- Array
+- Map
+- Struct
+- Enum
+- Option
+- Result
+- Custom types
+I'd also introduce refinement types.
+
+For example:
+type UserAge = Integer where value >= 0 and value <= 130;
+
+type Percentage = Float where value >= 0.0 and value <= 100.0;
+
+type Email = String where valid_email(value);
+
+
+Now the compiler can catch invalid values before execution.
+
+An agent cannot accidentally pass a negative age into a function expecting UserAge without explicitly handling that constraint.
+
+My preference: make common types extremely easy to use, while allowing advanced constraints when necessary.
+B. Explicit security permissions
+One of the most important features
+I would make security part of the language itself, rather than something left to libraries and runtime configuration.
+
+Every function declares what it can access.
+
+For example:
+function read_config()
+    -> Result<Config, IOError>
+    effects(filesystem.read("/config"))
+{
+    return filesystem.read("/config");
+}
+
+
+A function that doesn't declare filesystem access cannot access the filesystem.
+
+Similarly:
+function calculate_total(
+    prices: Array<Float>
+) -> Float
+    effects(pure)
+{
+    return prices.sum();
+}
+
+
+This function is completely isolated from external systems.
+
+I'd introduce a capability system:
+Capability	Permission
+filesystem.read	Read permitted files
+filesystem.write	Write permitted files
+network.connect	Connect to permitted hosts
+database.read	Read database
+database.write	Modify database
+process.spawn	Launch processes
+environment.read	Read permitted environment variables
+
+The important distinction is that permissions are granted explicitly by the host environment.
+
+An agent-generated program should never automatically receive access to everything simply because it can compile.
+
+This is particularly relevant for autonomous coding agents that execute generated scripts.
+
+There is interesting research supporting this direction: tracked capabilities can enforce permissions and prevent certain classes of information leakage through static type checking. 
+DOI
+
+C. Compiler-native error detection
+My highest priority for agentic development
+This is where I think a new language could really distinguish itself.
+
+Traditional compiler errors are primarily designed for human programmers.
+
+I would make compiler diagnostics a first-class machine interface.
+
+For example, instead of:
+Error: mismatched types
+Expected Integer, found String
+
+
+The compiler returns:
+{
+  "status": "error",
+  "code": "TYPE_MISMATCH",
+  "file": "src/player.ag",
+  "line": 42,
+  "symbol": "player.health",
+  "expected": "Integer",
+  "received": "String",
+  "repair": {
+    "type": "replace_expression",
+    "target": "player.health",
+    "expected_type": "Integer"
+  }
+}
+
+
+The exact structure would be a compiler API, not merely a text output format.
+
+I'd have every diagnostic include:
+- Unique error identifier.
+- File and location.
+- Exact symbol or expression responsible.
+- Expected and actual types.
+- Explanation of the violation.
+- Suggested repair category.
+- Whether the error can be automatically repaired.
+- Whether other files are affected.
+I'd also include compiler-generated repair suggestions, rather than forcing the LLM to interpret every error from scratch.
+
+Imagine an agent generating 30 files.
+
+The compiler identifies 4 problems and provides 4 structured diagnostics.
+
+The agent fixes those specific problems, recompiles only affected sections and continues.
+
+This is much more efficient than repeatedly dumping thousands of lines of compiler output into an LLM's context.
+D. Continuous compilation and verification
+I'd introduce something called a Live Verification Engine.
+
+Rather than compiling the entire project after every change, the compiler maintains an incremental representation of the project.
+The agent development loop
+1. Agent generates code
+   
+   A new function, module or modification is produced.
+2. Incremental compiler
+   
+   Only the changed code and its affected dependencies are analysed.
+3. Static verification
+   
+   Types, memory safety, permissions, contracts and dependencies are checked.
+4. Automated testing
+   
+   Relevant unit and integration tests are executed.
+5. Agent receives structured feedback
+   
+   Only relevant errors and failed assertions are returned.
+6. Commit validation
+   
+   The proposed change is checked against the project's verification requirements.
+Commit permitted only when required checks pass
+
+I'd also make it possible to verify individual functions without compiling the entire application.
+
+This is particularly valuable for large projects where an agent might only be modifying one relatively small module.
+E. Built-in contracts and assertions
+This is another feature I'd consider fundamental.
+
+Functions should optionally declare their expected behaviour.
+
+For example:
+function withdraw(
+    account: Account,
+    amount: Money
+) -> Result<Account, BankingError>
+
+requires amount > Money.zero()
+requires account.balance >= amount
+
+ensures result.balance == account.balance - amount
+{
+    return account.with_balance(
+        account.balance - amount
+    );
+}
+
+
+The compiler could check what it can statically prove.
+
+For more complex conditions, a verification engine could use an SMT solver to attempt to prove the conditions.
+
+If it cannot prove them, it reports that the contract remains unverified rather than pretending it is safe.
+
+This would be especially useful for:
+- Financial calculations.
+- Authentication.
+- Permissions.
+- Data transformations.
+- Game logic.
+- Inventory systems.
+- Network protocols.
+I would make contracts optional for ordinary functions but mandatory for certain security-critical operations.
+F. Memory safety without Rust-level complexity
+Rust has an excellent ownership model, but its learning curve and borrow checker can make code generation challenging.
+
+I'd aim for:
+- Automatic memory management by default.
+- Deterministic resource cleanup.
+- Ownership rules.
+- Borrow checking where necessary.
+- No unrestricted pointer arithmetic.
+- No use-after-free.
+- No data races.
+I'd avoid requiring agents to manually manage memory in ordinary applications.
+
+For performance-critical applications, I'd provide an explicitly marked low-level mode with tighter rules.
+
+This is important because a language can be secure without forcing every developer to write complicated memory-management code.
+G. Native concurrency and parallel execution
+LLMs are particularly good at generating independent operations that can be executed simultaneously.
+
+I'd make concurrency a first-class language feature.
+
+For example:
+function load_dashboard()
+    -> Result<Dashboard, Error>
+    effects(network.read)
+{
+    let (profile, messages, statistics) = parallel {
+        get_profile(),
+        get_messages(),
+        get_statistics()
+    };
+
+    return Dashboard {
+        profile: profile?,
+        messages: messages?,
+        statistics: statistics?
+    };
+}
+
+
+The compiler would identify independent operations and execute them concurrently where safe.
+
+I would also introduce:
+- Structured concurrency.
+- Automatic cancellation.
+- Race detection.
+- Deadlock prevention where statically possible.
+- Explicit shared-state permissions.
+A useful additional feature would be automatic parallelisation of independent, pure operations.
+
+This isn't just theoretical: QUASAR, a recent research language for LLM-generated code actions, explores automated parallelisation alongside reliability and security features. 
+Lacuna
+
+H. A structured code representation
+Potentially the biggest architectural advantage
+This is something I'd seriously consider.
+
+Normally, an LLM generates text which a compiler parses into an abstract syntax tree (AST).
+
+But why must the agent always work with raw text?
+
+I'd provide two interfaces:
+1. A human-readable source language.
+2. A structured machine-readable representation.
+The agent could create or modify functions directly through structured operations.
+
+For example:
+{
+  "operation": "create_function",
+  "module": "player",
+  "name": "calculate_health",
+  "parameters": [
+    {
+      "name": "damage",
+      "type": "Integer"
+    }
+  ],
+  "return_type": "Integer",
+  "body": {
+    "operation": "subtract",
+    "left": {
+      "symbol": "player.health"
+    },
+    "right": {
+      "symbol": "damage"
+    }
+  }
+}
+
+
+The compiler validates the structure before turning it into executable code.
+
+The agent doesn't need to worry about:
+- Missing brackets.
+- Incorrect punctuation.
+- Formatting.
+- Indentation.
+- Inconsistent syntax.
+More importantly, it can modify an individual function without rewriting the entire file.
+
+I would make this a first-class compiler API, with operations such as:
+- create_function
+- modify_function
+- replace_expression
+- add_import
+- modify_type
+- remove_symbol
+- rename_symbol
+Every modification would be checked against the current project version.
+
+This could significantly reduce accidental changes to unrelated code.
+4. The development environment should be part of the language
+I wouldn't treat the compiler, package manager, testing framework and agent interface as separate products.
+
+I'd develop them together.
+
+I'd envisage a command-line interface along these lines:
+Command	Purpose
+agent check	Fast static verification
+agent build	Compile project
+agent test	Run tests
+agent audit	Security audit
+agent verify	Run contracts and deeper verification
+agent impact	Show consequences of a proposed change
+agent diff	Show structural changes
+agent patch	Apply a validated structural modification
+agent commit-check	Run all required pre-commit checks
+
+One particularly useful command would be:
+agent impact src/player.ag
+
+
+It would report something like:
+CHANGE IMPACT ANALYSIS
+
+Modified:
+  Player.calculate_health()
+
+Direct dependencies:
+  Player.take_damage()
+  Combat.resolve_attack()
+
+Indirect dependencies:
+  MatchController.process_hit()
+
+Potential issues:
+  1 Type mismatch
+  1 Contract violation
+  0 Security violations
+
+Unmodified modules affected:
+  2
+
+Verification:
+  FAILED
+
+
+This would be incredibly useful for autonomous agents working on large repositories.
+5. Architecture and compilation
+For compatibility and performance, I wouldn't invent a completely new execution environment.
+
+I'd build the language around an intermediate representation (IR).
+LLM / Coding Agent
+
+Text generation or structured AST operations
+
+
+AgentLang Compiler
+
+Parsing, types, effects, contracts, security
+
+
+Verified Intermediate Representation
+
+Optimised, typed, dependency-tracked program
+
+
+Native
+
+LLVM / machine code
+
+Web
+
+WebAssembly
+
+Sandbox
+
+Isolated execution
+
+
+
+I would prioritise:
+- Linux.
+- Windows.
+- macOS.
+- WebAssembly.
+- Embedded environments eventually.
+For native compilation, I'd initially use LLVM rather than creating a completely new backend.
+
+For WASM, I'd support a restricted execution profile with explicitly granted host capabilities.
+
+This gives the language a much better chance of achieving broad compatibility without spending years building architecture-specific compilers.
+6. What I would do differently from existing AI-focused languages
+There are already projects exploring this territory.
+
+A few worth studying:
+
+
+
+
+
+
+
+
+
+
+Promise
+
+Explicit ownership, effects and error handling. Designed around AI-generated maintainable code.
+
+GitHub repository 
+GitHub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Edict
+
+Structured JSON AST, effect tracking, contract verification and WASM sandboxing.
+
+GitHub repository 
+GitHub
+
+
+
+
+
+
+Orison
+
+JSON diagnostics, structural patches, capability-secured effects and agent-focused tooling.
+
+GitHub repository 
+GitHub
+
+
+
+
+
+
+QUASAR
+
+Research into automatic parallelisation, uncertainty quantification and secure agent-generated code.
+
+Research overview 
+Lacuna
+
+
+
+
+There is also important research into type-constrained code generation. A 2025 PLDI paper demonstrated that constraining LLM generation using type information reduced compilation errors by more than half in its evaluated tasks. 
+DOI+1
+
+
+My conclusion is that we shouldn't just make another language with better syntax.
+
+We should build a language where the compiler actively participates in the agent's reasoning and development process.
+7. My proposed feature priorities
+If I were actually developing this, I would prioritise features as follows.
+Feature	Priority	Reason
+Static type system	Critical	Prevent invalid code
+Structured diagnostics	Critical	Enable autonomous repairs
+Memory safety	Critical	Eliminate major vulnerability classes
+Capability security	Critical	Restrict agent permissions
+Incremental compilation	Critical	Fast development feedback
+Structural code editing	Critical	Avoid destructive rewrites
+Built-in testing	High	Catch logical errors
+Contract verification	High	Verify intended behaviour
+Native compilation	High	Performance
+WASM support	High	Portability and isolation
+Automatic parallelisation	Medium	Performance optimisation
+Formal verification	Medium	Stronger correctness guarantees
+
+8. What I would actually build first
+I wouldn't attempt to build the entire language immediately.
+
+I'd develop a small but fully functional compiler and toolchain first.
+Proposed development roadmap
+1. Phase 1 – Language core
+   First milestone
+   - Lexer and parser
+   - Basic syntax
+   - Static type checking
+   - Structs, enums and functions
+   - Result and Option types
+   - JSON compiler diagnostics
+2. Phase 2 – Agent toolchain
+   - Structured AST interface
+   - Function-level code modification
+   - Incremental compilation
+   - Dependency tracking
+   - Machine-readable errors
+   - Automated repair feedback
+3. Phase 3 – Security
+   - Capability-based permissions
+   - Memory safety
+   - Effect tracking
+   - Sandboxed execution
+   - Security auditing
+4. Phase 4 – Production compiler
+   - LLVM backend
+   - Optimisation
+   - Native executables
+   - WASM backend
+   - Standard library
+   - Package manager
+5. Phase 5 – Verification ecosystem
+   - Contract system
+   - SMT integration
+   - Automatic test generation
+   - Change impact analysis
+   - Pre-commit verification
+   - Agent development protocol
+
+One additional thing I'd do from day one: create a benchmark suite specifically for LLM-generated software.
+
+I wouldn't benchmark the language purely on execution speed.
+
+I'd measure:
+1. How often different LLMs generate compilable code on the first attempt.
+2. How many iterations are required to fix compiler errors.
+3. How often generated code introduces security vulnerabilities.
+4. How often a modification breaks unrelated functionality.
+5. How quickly the compiler identifies errors.
+6. How much context the agent needs to understand a project.
+7. How much time and memory compiled applications consume.
+8. How easily different LLM families can generate code in the language.
+The objective is to optimise the entire agentic development lifecycle, not simply the runtime.
+
+9. Three decisions I'd make before starting
+There are three architectural choices that would significantly influence the design.
+Shape the language
+1. What should the language primarily be used for?
+
+General-purpose programming (applications, games, systems, servers)
+
+Agentic coding and autonomous software development
+
+Both equally – a general-purpose language designed around LLMs
+
+
+2. How should LLMs write code?
+
+Traditional human-readable syntax only
+
+Structured AST / JSON generation primarily
+
+Hybrid – human-readable source and structured agent interface
+
+
+3. How strict should verification be?
+
+Balanced – strict types and security, optional formal proofs
+
+Extremely strict – contracts and formal verification wherever possible
+
+Fast iteration – prioritise speed, with deeper verification before commits
+
+
+4. What compilation targets matter most?
+
+Native executables first
+
+WebAssembly first
+
+Native and WebAssembly equally
+
+Use these design preferences
+My personal recommendation: I'd choose a hybrid human-readable/structured interface, strict static typing, capability-based security, incremental verification, and both native and WASM compilation.
+
+The most important differentiator wouldn't be that an LLM can write the language easily. It would be that an LLM can write it, validate it, repair it, modify it and safely commit it with minimal human intervention.
