@@ -24,6 +24,8 @@ pub struct TypeChecker<'a> {
     /// Enum name -> (variant name -> optional payload type).
     enums: HashMap<String, HashMap<String, Option<Ty>>>,
     scopes: Vec<HashMap<String, Ty>>,
+    /// Return type of the function currently being checked (for `?`).
+    current_return: Ty,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -34,6 +36,7 @@ impl<'a> TypeChecker<'a> {
             structs: HashMap::new(),
             enums: HashMap::new(),
             scopes: Vec::new(),
+            current_return: Ty::Unknown,
         }
     }
 
@@ -75,7 +78,7 @@ impl<'a> TypeChecker<'a> {
             self.structs.insert(decl.name.clone(), fields);
         }
 
-        // Register enum definitions (declarations only; construction is Milestone 5).
+        // Register enum definitions.
         for decl in &module.enums {
             if self.structs.contains_key(&decl.name) || self.enums.contains_key(&decl.name) {
                 diags.push(
@@ -157,6 +160,7 @@ impl<'a> TypeChecker<'a> {
             }
 
             let ret_ty = self.resolve_type(&function.return_type);
+            self.current_return = ret_ty.clone();
             let mut saw_return = false;
             for stmt in &function.body {
                 self.check_stmt(stmt, &ret_ty, &mut diags, &mut saw_return);
@@ -253,7 +257,7 @@ impl<'a> TypeChecker<'a> {
                     Some(expr) => self.check_expr(expr, diags),
                     None => Ty::Unit,
                 };
-                if actual != Ty::Unknown && *ret_ty != Ty::Unknown && actual != *ret_ty {
+                if !compatible(ret_ty, &actual) {
                     diags.push(
                         Diagnostic::error(
                             "TYPE_MISMATCH",
@@ -293,6 +297,8 @@ impl<'a> TypeChecker<'a> {
                 } else if self.functions.contains_key(name) {
                     // Using a function name as a value is not supported yet.
                     Ty::Unknown
+                } else if name == "None" {
+                    Ty::Option(Box::new(Ty::Unknown))
                 } else {
                     diags.push(
                         Diagnostic::error(
@@ -412,6 +418,28 @@ impl<'a> TypeChecker<'a> {
             Expr::StructLit { name, fields, span } => {
                 self.check_struct_literal(name, fields, *span, diags)
             }
+            Expr::Variant {
+                enum_name,
+                variant,
+                payload,
+                span,
+            } => self.check_variant(enum_name, variant, payload.as_deref(), *span, diags),
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                span,
+            } => self.check_method_call(receiver, method, args, *span, diags),
+            Expr::Try { expr, span } => self.check_try(expr, *span, diags),
+            Expr::Lambda { .. } => {
+                diags.push(Diagnostic::error(
+                    "UNSUPPORTED_LAMBDA",
+                    self.file,
+                    expr.span(),
+                    "Closures are only supported as arguments to `.map` in Phase 1",
+                ));
+                Ty::Unknown
+            }
         }
     }
 
@@ -458,8 +486,7 @@ impl<'a> TypeChecker<'a> {
             }
             match struct_fields.get(field_name) {
                 Some(expected) => {
-                    if value_ty != Ty::Unknown && *expected != Ty::Unknown && value_ty != *expected
-                    {
+                    if !compatible(expected, &value_ty) {
                         diags.push(
                             Diagnostic::error(
                                 "TYPE_MISMATCH",
@@ -528,6 +555,14 @@ impl<'a> TypeChecker<'a> {
         span: Span,
         diags: &mut Vec<Diagnostic>,
     ) -> Ty {
+        // Unqualified Option/Result constructors (`Some`, `Ok`, `Err`) are
+        // available unless the user has defined a function with that name.
+        if !self.functions.contains_key(callee) {
+            if let Some(ty) = self.check_builtin_constructor(callee, args, span, diags) {
+                return ty;
+            }
+        }
+
         let mut arg_types = Vec::new();
         for arg in args {
             arg_types.push(self.check_expr(arg, diags));
@@ -573,7 +608,7 @@ impl<'a> TypeChecker<'a> {
         }
 
         for (index, (actual, expected)) in arg_types.iter().zip(sig.params.iter()).enumerate() {
-            if *actual != Ty::Unknown && *expected != Ty::Unknown && actual != expected {
+            if !compatible(expected, actual) {
                 diags.push(
                     Diagnostic::error(
                         "TYPE_MISMATCH",
@@ -599,6 +634,508 @@ impl<'a> TypeChecker<'a> {
         }
 
         sig.ret
+    }
+
+    /// Check an unqualified `Some` / `None` / `Ok` / `Err` constructor.
+    /// Returns `None` when `name` is not a built-in constructor.
+    fn check_builtin_constructor(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) -> Option<Ty> {
+        match name {
+            "Some" => Some(self.expect_one_payload("Some", args, span, diags, |inner| {
+                Ty::Option(Box::new(inner))
+            })),
+            "Ok" => Some(self.expect_one_payload("Ok", args, span, diags, |inner| {
+                Ty::Result(Box::new(inner), Box::new(Ty::Unknown))
+            })),
+            "Err" => Some(self.expect_one_payload("Err", args, span, diags, |inner| {
+                Ty::Result(Box::new(Ty::Unknown), Box::new(inner))
+            })),
+            "None" => {
+                if !args.is_empty() {
+                    diags.push(
+                        Diagnostic::error(
+                            "ARITY_MISMATCH",
+                            self.file,
+                            span,
+                            "`None` takes no arguments",
+                        )
+                        .with_types("0 argument(s)", &format!("{}", args.len())),
+                    );
+                    for arg in args {
+                        self.check_expr(arg, diags);
+                    }
+                }
+                Some(Ty::Option(Box::new(Ty::Unknown)))
+            }
+            _ => None,
+        }
+    }
+
+    fn expect_one_payload(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+        wrap: impl FnOnce(Ty) -> Ty,
+    ) -> Ty {
+        if args.len() != 1 {
+            diags.push(
+                Diagnostic::error(
+                    "ARITY_MISMATCH",
+                    self.file,
+                    span,
+                    &format!("`{}` expects exactly one argument", name),
+                )
+                .with_types("1 argument(s)", &format!("{}", args.len())),
+            );
+            for arg in args {
+                self.check_expr(arg, diags);
+            }
+            return Ty::Unknown;
+        }
+        let inner = self.check_expr(&args[0], diags);
+        wrap(inner)
+    }
+
+    fn check_variant(
+        &mut self,
+        enum_name: &str,
+        variant: &str,
+        payload: Option<&[Expr]>,
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) -> Ty {
+        let args = payload.unwrap_or(&[]);
+        match enum_name {
+            "Option" => match variant {
+                "Some" => self.expect_one_payload("Option::Some", args, span, diags, |inner| {
+                    Ty::Option(Box::new(inner))
+                }),
+                "None" => {
+                    self.reject_payload("Option::None", args, span, diags);
+                    Ty::Option(Box::new(Ty::Unknown))
+                }
+                _ => {
+                    diags.push(
+                        Diagnostic::error(
+                            "UNKNOWN_VARIANT",
+                            self.file,
+                            span,
+                            &format!("`Option` has no variant `{}`", variant),
+                        )
+                        .with_symbol(variant)
+                        .with_repair("rename_symbol", Some(variant), None),
+                    );
+                    Ty::Unknown
+                }
+            },
+            "Result" => match variant {
+                "Ok" => self.expect_one_payload("Result::Ok", args, span, diags, |inner| {
+                    Ty::Result(Box::new(inner), Box::new(Ty::Unknown))
+                }),
+                "Err" => self.expect_one_payload("Result::Err", args, span, diags, |inner| {
+                    Ty::Result(Box::new(Ty::Unknown), Box::new(inner))
+                }),
+                _ => {
+                    diags.push(
+                        Diagnostic::error(
+                            "UNKNOWN_VARIANT",
+                            self.file,
+                            span,
+                            &format!("`Result` has no variant `{}`", variant),
+                        )
+                        .with_symbol(variant)
+                        .with_repair("rename_symbol", Some(variant), None),
+                    );
+                    Ty::Unknown
+                }
+            },
+            _ => {
+                let variants = match self.enums.get(enum_name).cloned() {
+                    Some(variants) => variants,
+                    None => {
+                        diags.push(
+                            Diagnostic::error(
+                                "UNKNOWN_TYPE",
+                                self.file,
+                                span,
+                                &format!("Unknown enum `{}`", enum_name),
+                            )
+                            .with_symbol(enum_name)
+                            .with_repair(
+                                "declare_symbol",
+                                Some(enum_name),
+                                None,
+                            ),
+                        );
+                        for arg in args {
+                            self.check_expr(arg, diags);
+                        }
+                        return Ty::Unknown;
+                    }
+                };
+
+                match variants.get(variant) {
+                    Some(Some(expected)) => {
+                        if args.len() != 1 {
+                            diags.push(
+                                Diagnostic::error(
+                                    "ARITY_MISMATCH",
+                                    self.file,
+                                    span,
+                                    &format!(
+                                        "Variant `{}::{}` expects one payload",
+                                        enum_name, variant
+                                    ),
+                                )
+                                .with_types("1 argument(s)", &format!("{}", args.len())),
+                            );
+                            for arg in args {
+                                self.check_expr(arg, diags);
+                            }
+                        } else {
+                            let actual = self.check_expr(&args[0], diags);
+                            if !compatible(expected, &actual) {
+                                diags.push(
+                                    Diagnostic::error(
+                                        "TYPE_MISMATCH",
+                                        self.file,
+                                        span,
+                                        &format!(
+                                            "Payload for `{}::{}`: expected `{}`, found `{}`",
+                                            enum_name, variant, expected, actual
+                                        ),
+                                    )
+                                    .with_symbol(variant)
+                                    .with_types(&expected.to_string(), &actual.to_string())
+                                    .with_repair(
+                                        "replace_expression",
+                                        None,
+                                        Some(&expected.to_string()),
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    Some(None) => {
+                        self.reject_payload(
+                            &format!("{}::{}", enum_name, variant),
+                            args,
+                            span,
+                            diags,
+                        );
+                    }
+                    None => {
+                        diags.push(
+                            Diagnostic::error(
+                                "UNKNOWN_VARIANT",
+                                self.file,
+                                span,
+                                &format!("Enum `{}` has no variant `{}`", enum_name, variant),
+                            )
+                            .with_symbol(variant)
+                            .with_repair(
+                                "rename_symbol",
+                                Some(variant),
+                                None,
+                            ),
+                        );
+                        for arg in args {
+                            self.check_expr(arg, diags);
+                        }
+                    }
+                }
+
+                Ty::Named(enum_name.to_string())
+            }
+        }
+    }
+
+    fn reject_payload(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) {
+        if !args.is_empty() {
+            diags.push(
+                Diagnostic::error(
+                    "ARITY_MISMATCH",
+                    self.file,
+                    span,
+                    &format!("Variant `{}` takes no payload", name),
+                )
+                .with_types("0 argument(s)", &format!("{}", args.len())),
+            );
+            for arg in args {
+                self.check_expr(arg, diags);
+            }
+        }
+    }
+
+    fn check_method_call(
+        &mut self,
+        receiver: &Expr,
+        method: &str,
+        args: &[Expr],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) -> Ty {
+        let receiver_ty = self.check_expr(receiver, diags);
+        match method {
+            "map" => self.method_map(receiver_ty, args, span, diags),
+            "unwrap" => match receiver_ty {
+                Ty::Option(inner) => *inner,
+                Ty::Result(ok, _) => *ok,
+                Ty::Unknown => Ty::Unknown,
+                other => {
+                    self.unknown_method(&other, method, args, span, diags);
+                    Ty::Unknown
+                }
+            },
+            "unwrap_or" => {
+                let (value_ty, _kind) = match receiver_ty {
+                    Ty::Option(inner) => (*inner, "Option"),
+                    Ty::Result(ok, _) => (*ok, "Result"),
+                    Ty::Unknown => {
+                        for arg in args {
+                            self.check_expr(arg, diags);
+                        }
+                        return Ty::Unknown;
+                    }
+                    other => {
+                        self.unknown_method(&other, method, args, span, diags);
+                        return Ty::Unknown;
+                    }
+                };
+                if args.len() != 1 {
+                    diags.push(
+                        Diagnostic::error(
+                            "ARITY_MISMATCH",
+                            self.file,
+                            span,
+                            "`.unwrap_or` expects exactly one argument",
+                        )
+                        .with_types("1 argument(s)", &format!("{}", args.len())),
+                    );
+                    for arg in args {
+                        self.check_expr(arg, diags);
+                    }
+                    return value_ty;
+                }
+                let actual = self.check_expr(&args[0], diags);
+                if !compatible(&value_ty, &actual) {
+                    diags.push(
+                        Diagnostic::error(
+                            "TYPE_MISMATCH",
+                            self.file,
+                            span,
+                            &format!(
+                                "`.unwrap_or` default: expected `{}`, found `{}`",
+                                value_ty, actual
+                            ),
+                        )
+                        .with_types(&value_ty.to_string(), &actual.to_string())
+                        .with_repair(
+                            "replace_expression",
+                            None,
+                            Some(&value_ty.to_string()),
+                        ),
+                    );
+                }
+                value_ty
+            }
+            "is_some" | "is_none" | "is_ok" | "is_err" => {
+                let valid = match (&receiver_ty, method) {
+                    (Ty::Option(_), "is_some" | "is_none") => true,
+                    (Ty::Result(_, _), "is_ok" | "is_err") => true,
+                    (Ty::Unknown, _) => true,
+                    _ => false,
+                };
+                if !valid {
+                    self.unknown_method(&receiver_ty, method, args, span, diags);
+                }
+                for arg in args {
+                    self.check_expr(arg, diags);
+                }
+                Ty::Bool
+            }
+            _ => {
+                self.unknown_method(&receiver_ty, method, args, span, diags);
+                Ty::Unknown
+            }
+        }
+    }
+
+    fn unknown_method(
+        &mut self,
+        receiver_ty: &Ty,
+        method: &str,
+        args: &[Expr],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) {
+        diags.push(
+            Diagnostic::error(
+                "UNKNOWN_METHOD",
+                self.file,
+                span,
+                &format!("Type `{}` has no method `{}`", receiver_ty, method),
+            )
+            .with_symbol(method)
+            .with_repair("rename_symbol", Some(method), None),
+        );
+        for arg in args {
+            self.check_expr(arg, diags);
+        }
+    }
+
+    fn method_map(
+        &mut self,
+        receiver_ty: Ty,
+        args: &[Expr],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) -> Ty {
+        let (inner, err_ty) = match receiver_ty {
+            Ty::Option(inner) => (*inner, None),
+            Ty::Result(ok, err) => (*ok, Some(*err)),
+            Ty::Unknown => {
+                for arg in args {
+                    self.check_expr(arg, diags);
+                }
+                return Ty::Unknown;
+            }
+            other => {
+                self.unknown_method(&other, "map", args, span, diags);
+                return Ty::Unknown;
+            }
+        };
+
+        if args.len() != 1 {
+            diags.push(
+                Diagnostic::error(
+                    "ARITY_MISMATCH",
+                    self.file,
+                    span,
+                    "`.map` expects exactly one closure argument",
+                )
+                .with_types("1 argument(s)", &format!("{}", args.len())),
+            );
+            for arg in args {
+                self.check_expr(arg, diags);
+            }
+            return Ty::Unknown;
+        }
+
+        let body_ty = match &args[0] {
+            Expr::Lambda { param, body, .. } => self.check_lambda(param, body, inner, diags),
+            other => {
+                let _ = self.check_expr(other, diags);
+                diags.push(
+                    Diagnostic::error(
+                        "EXPECTED_LAMBDA",
+                        self.file,
+                        other.span(),
+                        "`.map` expects a closure argument, e.g. `|x| expr`",
+                    )
+                    .with_symbol("map")
+                    .with_repair("replace_expression", None, None),
+                );
+                Ty::Unknown
+            }
+        };
+
+        match err_ty {
+            None => Ty::Option(Box::new(body_ty)),
+            Some(err) => Ty::Result(Box::new(body_ty), Box::new(err)),
+        }
+    }
+
+    fn check_lambda(
+        &mut self,
+        param: &str,
+        body: &Expr,
+        param_ty: Ty,
+        diags: &mut Vec<Diagnostic>,
+    ) -> Ty {
+        self.scopes.push(HashMap::new());
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .insert(param.to_string(), param_ty);
+        let body_ty = self.check_expr(body, diags);
+        self.scopes.pop();
+        body_ty
+    }
+
+    fn check_try(&mut self, expr: &Expr, span: Span, diags: &mut Vec<Diagnostic>) -> Ty {
+        let inner = self.check_expr(expr, diags);
+        match inner {
+            Ty::Result(ok, err) => {
+                match &self.current_return {
+                    Ty::Result(_, current_err) => {
+                        if !compatible(current_err, &err) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "TRY_TYPE_MISMATCH",
+                                    self.file,
+                                    span,
+                                    &format!(
+                                        "`?` propagates error `{}` but the function returns `{}`",
+                                        err, self.current_return
+                                    ),
+                                )
+                                .with_types(&current_err.to_string(), &err.to_string()),
+                            );
+                        }
+                    }
+                    _ => {
+                        diags.push(Diagnostic::error(
+                            "INVALID_TRY",
+                            self.file,
+                            span,
+                            &format!(
+                                "`?` on a `Result` requires the enclosing function to return `Result`, found `{}`",
+                                self.current_return
+                            ),
+                        ));
+                    }
+                }
+                *ok
+            }
+            Ty::Option(value) => {
+                if !matches!(self.current_return, Ty::Option(_) | Ty::Unknown) {
+                    diags.push(Diagnostic::error(
+                        "INVALID_TRY",
+                        self.file,
+                        span,
+                        &format!(
+                            "`?` on an `Option` requires the enclosing function to return `Option`, found `{}`",
+                            self.current_return
+                        ),
+                    ));
+                }
+                *value
+            }
+            Ty::Unknown => Ty::Unknown,
+            other => {
+                diags.push(Diagnostic::error(
+                    "INVALID_TRY",
+                    self.file,
+                    span,
+                    &format!("`?` requires an `Option` or `Result`, found `{}`", other),
+                ));
+                Ty::Unknown
+            }
+        }
     }
 
     fn check_binary(
@@ -680,5 +1217,19 @@ impl<'a> TypeChecker<'a> {
                 Ty::Bool
             }
         }
+    }
+}
+
+/// Structural compatibility where `Unknown` acts as a wildcard. This lets
+/// constructors like `None` / `Err(e)` flow into more specific expected types
+/// without false positives.
+fn compatible(a: &Ty, b: &Ty) -> bool {
+    match (a, b) {
+        (Ty::Unknown, _) | (_, Ty::Unknown) => true,
+        (Ty::Array(x), Ty::Array(y)) => compatible(x, y),
+        (Ty::Map(k1, v1), Ty::Map(k2, v2)) => compatible(k1, k2) && compatible(v1, v2),
+        (Ty::Option(x), Ty::Option(y)) => compatible(x, y),
+        (Ty::Result(a1, a2), Ty::Result(b1, b2)) => compatible(a1, b1) && compatible(a2, b2),
+        _ => a == b,
     }
 }

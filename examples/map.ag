@@ -1,0 +1,11 @@
+struct User {
+    name: String,
+}
+
+function maybe_name(user: Option<User>) -> Option<String> {
+    return user.map(|u| u.name);
+}
+
+function main() -> i32 {
+    return 0;
+}

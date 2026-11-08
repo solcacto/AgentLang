@@ -71,6 +71,12 @@ Optional fields are omitted when absent.
 | `MISSING_FIELD` | Struct literal is missing a required field |
 | `DUPLICATE_FIELD` | Field declared or initialized twice |
 | `NOT_A_STRUCT` | Field access on a non-struct type |
+| `UNKNOWN_VARIANT` | Enum/variant does not exist |
+| `UNKNOWN_METHOD` | Method does not exist on the receiver type |
+| `INVALID_TRY` | `?` used outside a matching `Option`/`Result` context |
+| `TRY_TYPE_MISMATCH` | `?` propagates a different error type than the function returns |
+| `EXPECTED_LAMBDA` | `.map` was given a non-closure argument |
+| `UNSUPPORTED_LAMBDA` | Closure used outside a supported position |
 
 ## Contract for agents
 

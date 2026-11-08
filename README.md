@@ -53,15 +53,24 @@ cargo run -- check examples/bad.ag
 
 # Structs and field access
 cargo run -- check examples/structs.ag
+
+# Option/Result, the ? operator, and methods
+cargo run -- check examples/option.ag
+cargo run -- check examples/result.ag
+cargo run -- check examples/map.ag
 ```
 
 ### Phase 1 language subset
 
 Currently supported: functions with typed parameters and `effects(...)`, `let`,
 `return`, arithmetic/comparison/logical operators, function calls, `struct`
-declarations with typed fields, struct literals, field access, and `enum`
-declarations. `Result`/`Option` construction, `?`, control flow, and `match`
-are upcoming (see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
+declarations with typed fields, struct literals, field access, `enum`
+declarations and `Enum::Variant` construction (with payloads), built-in
+`Option<T>`/`Result<T, E>` construction (`Some`/`None`/`Ok`/`Err` and
+`Option::*`/`Result::*`), the `?` operator, closures as `.map` arguments, and
+the methods `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`,
+`is_err`. Control flow and `match` are upcoming (see
+[`PHASE1_TODO.md`](PHASE1_TODO.md)).
 
 Example diagnostic output:
 

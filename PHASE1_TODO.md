@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, type-checks (including structs/enums), and emits structured JSON diagnostics. See `src/` and `tests/integration.rs`.
+> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, and minimal method calls — emitting structured JSON diagnostics. See `src/` and `tests/integration.rs`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -40,6 +40,7 @@
 - [x] Parse expressions with correct precedence (binary, unary, calls, member access)
 - [x] Parse type expressions (named, generic like `Result<T, E>`, `Array<T>`)
 - [x] Parse `struct` and `enum` declarations
+- [x] Parse `Enum::Variant` paths, method calls, closures, and the `?` operator
 - [ ] Error recovery: report a diagnostic and recover to the next statement (currently stops at first error)
 - [ ] Snapshot tests: source → AST
 
@@ -60,7 +61,7 @@
 - [x] Register struct definitions and their fields
 - [x] Register enum definitions and variants
 - [x] Type-check struct literal construction and field access
-- [ ] Type-check enum variant construction (needs `Enum::Variant` syntax)
+- [x] Type-check enum variant construction (`Enum::Variant`, with payloads)
 - [ ] (Stretch) basic `match` on enums
 - [x] Type-check function declarations end-to-end
 - [x] Integrate with symbol table and type resolution
@@ -68,11 +69,11 @@
 ## Milestone 5 — `Result` and `Option`
 
 - [x] Add `Option<T>` and `Result<T, E>` as built-in generic types
-- [ ] Implement `Option`/`Result` construction (`Some`, `None`, `Ok`, `Err`)
-- [ ] Type-check `.map(...)` style method calls (start with a minimal set)
-- [ ] Implement `?` operator propagation with correct error-type checking
-- [ ] Enforce explicit handling (no implicit unwrap)
-- [ ] Unit tests for success and error propagation paths
+- [x] Implement `Option`/`Result` construction (`Some`, `None`, `Ok`, `Err`, and qualified `Option::*` / `Result::*`)
+- [x] Type-check `.map(...)` method calls (closures supported as `map` arguments)
+- [x] Implement `?` operator propagation with correct error-type checking
+- [x] Enforce explicit handling (no implicit unwrap; `unwrap`/`unwrap_or` are explicit)
+- [x] Unit tests for success and error propagation paths
 
 ## Milestone 6 — JSON Compiler Diagnostics
 

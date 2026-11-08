@@ -187,3 +187,184 @@ function main() -> i32 {
     assert_eq!(first["received"], "String");
     assert_eq!(first["repair"]["type"], "replace_expression");
 }
+
+#[test]
+fn option_construction_and_try() {
+    let src = r#"
+struct User { name: String }
+
+function find_user() -> Option<User> {
+    return Option::None;
+}
+
+function get_name() -> Option<String> {
+    let user = find_user()?;
+    return Option::Some(user.name);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn result_construction_and_try() {
+    let src = r#"
+function parse_value(input: i32) -> Result<i32, String> {
+    return Result::Ok(input);
+}
+
+function compute() -> Result<i32, String> {
+    let value = parse_value(10)?;
+    return Result::Ok(value + 1);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn map_over_option() {
+    let src = r#"
+struct User { name: String }
+
+function maybe_name(user: Option<User>) -> Option<String> {
+    return user.map(|u| u.name);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn bare_constructors_work() {
+    let src = r#"
+function make() -> Option<i32> {
+    return Some(5);
+}
+
+function nothing() -> Option<i32> {
+    return None;
+}
+
+function ok() -> Result<i32, String> {
+    return Ok(1);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn invalid_try_detected() {
+    let src = r#"
+function parse_value(input: i32) -> Result<i32, String> {
+    return Result::Ok(input);
+}
+
+function compute() -> i32 {
+    let value = parse_value(10)?;
+    return value;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "INVALID_TRY"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn try_error_mismatch_detected() {
+    let src = r#"
+function parse_value(input: i32) -> Result<i32, String> {
+    return Result::Ok(input);
+}
+
+function compute() -> Result<i32, Bool> {
+    let value = parse_value(10)?;
+    return Result::Ok(value);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TRY_TYPE_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn unknown_method_detected() {
+    let src = r#"
+function main() -> i32 {
+    let x = 1;
+    return x.frobnicate();
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "UNKNOWN_METHOD"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn user_enum_variant_construction() {
+    let src = r#"
+enum Color { Red, Green, Blue }
+
+function red() -> Color {
+    return Color::Red;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn enum_variant_with_payload() {
+    let src = r#"
+enum Shape { Circle(i32), Square(i32) }
+
+function unit_circle() -> Shape {
+    return Shape::Circle(1);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn unknown_enum_variant_detected() {
+    let src = r#"
+enum Color { Red, Green, Blue }
+
+function bad() -> Color {
+    return Color::Purple;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "UNKNOWN_VARIANT"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn result_unwrap_or_type_checks() {
+    let src = r#"
+function parse_value(input: i32) -> Result<i32, String> {
+    return Result::Ok(input);
+}
+
+function main() -> i32 {
+    let r = parse_value(1);
+    return r.unwrap_or(0);
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}

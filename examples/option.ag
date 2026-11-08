@@ -1,0 +1,16 @@
+struct User {
+    name: String,
+}
+
+function find_user() -> Option<User> {
+    return Option::None;
+}
+
+function get_name() -> Option<String> {
+    let user = find_user()?;
+    return Option::Some(user.name);
+}
+
+function main() -> i32 {
+    return 0;
+}

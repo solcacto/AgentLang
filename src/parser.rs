@@ -471,28 +471,25 @@ impl Parser {
         loop {
             if self.at(&TokenKind::LParen) {
                 let span = self.peek_span();
-                self.advance();
-                let mut args = Vec::new();
-                if !self.at(&TokenKind::RParen) {
-                    loop {
-                        args.push(self.parse_expr()?);
-                        if self.at(&TokenKind::Comma) {
-                            self.advance();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                self.expect(&TokenKind::RParen, "`)`")?;
-                let callee = match &expr {
-                    Expr::Ident(name, _) => name.clone(),
-                    _ => {
-                        return Err(
-                            self.err_here("Only simple function calls are supported in Phase 1")
-                        )
-                    }
+                let args = self.parse_args()?;
+                expr = match expr {
+                    Expr::Ident(name, _) => Expr::Call {
+                        callee: name,
+                        args,
+                        span,
+                    },
+                    Expr::Member {
+                        object,
+                        field,
+                        span: _,
+                    } => Expr::MethodCall {
+                        receiver: object,
+                        method: field,
+                        args,
+                        span,
+                    },
+                    _ => return Err(self.err_here("Only function and method calls are supported")),
                 };
-                expr = Expr::Call { callee, args, span };
             } else if self.at(&TokenKind::Dot) {
                 let span = self.peek_span();
                 self.advance();
@@ -505,11 +502,35 @@ impl Parser {
                     field,
                     span,
                 };
+            } else if self.at(&TokenKind::Question) {
+                let span = self.peek_span();
+                self.advance();
+                expr = Expr::Try {
+                    expr: Box::new(expr),
+                    span,
+                };
             } else {
                 break;
             }
         }
         Ok(expr)
+    }
+
+    fn parse_args(&mut self) -> Result<Vec<Expr>, Diagnostic> {
+        self.expect(&TokenKind::LParen, "`(`")?;
+        let mut args = Vec::new();
+        if !self.at(&TokenKind::RParen) {
+            loop {
+                args.push(self.parse_expr()?);
+                if self.at(&TokenKind::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect(&TokenKind::RParen, "`)`")?;
+        Ok(args)
     }
 
     fn parse_primary(&mut self) -> Result<Expr, Diagnostic> {
@@ -522,11 +543,26 @@ impl Parser {
             TokenKind::True => Ok(Expr::Bool(true, span)),
             TokenKind::False => Ok(Expr::Bool(false, span)),
             TokenKind::Identifier(name) => {
-                if self.at(&TokenKind::LBrace) {
+                if self.at(&TokenKind::ColonColon) {
+                    self.parse_variant(name, span)
+                } else if self.at(&TokenKind::LBrace) {
                     self.parse_struct_literal(name, span)
                 } else {
                     Ok(Expr::Ident(name, span))
                 }
+            }
+            TokenKind::Pipe => {
+                let param = match self.advance() {
+                    TokenKind::Identifier(n) => n,
+                    _ => return Err(self.err_here("Expected closure parameter name")),
+                };
+                self.expect(&TokenKind::Pipe, "`|`")?;
+                let body = self.parse_expr()?;
+                Ok(Expr::Lambda {
+                    param,
+                    body: Box::new(body),
+                    span,
+                })
             }
             TokenKind::LParen => {
                 let expr = self.parse_expr()?;
@@ -561,5 +597,24 @@ impl Parser {
         }
         self.expect(&TokenKind::RBrace, "`}`")?;
         Ok(Expr::StructLit { name, fields, span })
+    }
+
+    fn parse_variant(&mut self, enum_name: String, span: Span) -> Result<Expr, Diagnostic> {
+        self.expect(&TokenKind::ColonColon, "`::`")?;
+        let variant = match self.advance() {
+            TokenKind::Identifier(v) => v,
+            _ => return Err(self.err_here("Expected variant name after `::`")),
+        };
+        let payload = if self.at(&TokenKind::LParen) {
+            Some(self.parse_args()?)
+        } else {
+            None
+        };
+        Ok(Expr::Variant {
+            enum_name,
+            variant,
+            payload,
+            span,
+        })
     }
 }

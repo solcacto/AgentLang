@@ -46,6 +46,7 @@ pub enum TokenKind {
     RBracket,
     Comma,
     Colon,
+    ColonColon,
     Semicolon,
     Dot,
     Arrow,
@@ -178,7 +179,12 @@ impl Lexer {
                 }
                 ':' => {
                     self.advance();
-                    TokenKind::Colon
+                    if self.peek() == Some(':') {
+                        self.advance();
+                        TokenKind::ColonColon
+                    } else {
+                        TokenKind::Colon
+                    }
                 }
                 ';' => {
                     self.advance();

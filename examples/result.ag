@@ -1,0 +1,13 @@
+function parse_value(input: i32) -> Result<i32, String> {
+    return Result::Ok(input);
+}
+
+function compute() -> Result<i32, String> {
+    let value = parse_value(10)?;
+    return Result::Ok(value + 1);
+}
+
+function main() -> i32 {
+    let result = compute();
+    return result.unwrap_or(0);
+}

@@ -125,6 +125,31 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
         span: Span,
     },
+    /// A path-based enum variant, e.g. `Color::Red` or `Option::Some(x)`.
+    Variant {
+        enum_name: String,
+        variant: String,
+        payload: Option<Vec<Expr>>,
+        span: Span,
+    },
+    /// A method call, e.g. `result.unwrap()` or `user.map(|u| u.name)`.
+    MethodCall {
+        receiver: Box<Expr>,
+        method: String,
+        args: Vec<Expr>,
+        span: Span,
+    },
+    /// The `?` operator.
+    Try {
+        expr: Box<Expr>,
+        span: Span,
+    },
+    /// A closure such as `|u| u.name`.
+    Lambda {
+        param: String,
+        body: Box<Expr>,
+        span: Span,
+    },
     Group(Box<Expr>),
 }
 
@@ -141,7 +166,11 @@ impl Expr {
             | Expr::Unary { span, .. }
             | Expr::Call { span, .. }
             | Expr::Member { span, .. }
-            | Expr::StructLit { span, .. } => *span,
+            | Expr::StructLit { span, .. }
+            | Expr::Variant { span, .. }
+            | Expr::MethodCall { span, .. }
+            | Expr::Try { span, .. }
+            | Expr::Lambda { span, .. } => *span,
             Expr::Group(e) => e.span(),
         }
     }
