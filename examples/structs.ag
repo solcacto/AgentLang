@@ -1,0 +1,13 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+function origin() -> Point {
+    return Point { x: 0, y: 0 };
+}
+
+function main() -> i32 {
+    let p = origin();
+    return p.x + p.y;
+}

@@ -50,7 +50,7 @@ Optional fields are omitted when absent.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | Repair category (`replace_expression`, `add_import`, `declare_symbol`, `insert_return`) |
+| `type` | string | Repair category (`replace_expression`, `add_import`, `declare_symbol`, `insert_return`, `add_field`, `rename_symbol`) |
 | `target` | string? | Symbol/expression to modify |
 | `expected_type` | string? | Type the repair should produce |
 
@@ -64,8 +64,13 @@ Optional fields are omitted when absent.
 | `UNDEFINED_SYMBOL` | Variable not declared |
 | `UNDEFINED_FUNCTION` | Call to an unknown function |
 | `ARITY_MISMATCH` | Wrong number of arguments |
-| `DUPLICATE_SYMBOL` | Symbol declared twice |
+| `DUPLICATE_SYMBOL` | Symbol/type/variant declared twice |
 | `MISSING_RETURN` | Non-unit function has no `return` |
+| `UNKNOWN_TYPE` | Struct literal names an undefined struct |
+| `UNKNOWN_FIELD` | Field does not exist on the struct |
+| `MISSING_FIELD` | Struct literal is missing a required field |
+| `DUPLICATE_FIELD` | Field declared or initialized twice |
+| `NOT_A_STRUCT` | Field access on a non-struct type |
 
 ## Contract for agents
 

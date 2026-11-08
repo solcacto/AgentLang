@@ -1,0 +1,9 @@
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
+function main() -> i32 {
+    return 0;
+}

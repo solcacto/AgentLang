@@ -4,7 +4,37 @@ use crate::lexer::Span;
 
 #[derive(Debug, Clone)]
 pub struct Module {
+    pub structs: Vec<StructDecl>,
+    pub enums: Vec<EnumDecl>,
     pub functions: Vec<FunctionDecl>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructDecl {
+    pub name: String,
+    pub fields: Vec<FieldDecl>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldDecl {
+    pub name: String,
+    pub ty: TypeExpr,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumDecl {
+    pub name: String,
+    pub variants: Vec<EnumVariant>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumVariant {
+    pub name: String,
+    pub payload: Option<TypeExpr>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -90,6 +120,11 @@ pub enum Expr {
         field: String,
         span: Span,
     },
+    StructLit {
+        name: String,
+        fields: Vec<(String, Expr)>,
+        span: Span,
+    },
     Group(Box<Expr>),
 }
 
@@ -105,7 +140,8 @@ impl Expr {
             Expr::Binary { span, .. }
             | Expr::Unary { span, .. }
             | Expr::Call { span, .. }
-            | Expr::Member { span, .. } => *span,
+            | Expr::Member { span, .. }
+            | Expr::StructLit { span, .. } => *span,
             Expr::Group(e) => e.span(),
         }
     }

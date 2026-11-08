@@ -54,15 +54,97 @@ impl Parser {
     }
 
     pub fn parse_module(&mut self) -> Result<Module, Diagnostic> {
+        let mut structs = Vec::new();
+        let mut enums = Vec::new();
         let mut functions = Vec::new();
         while !self.at(&TokenKind::Eof) {
-            if self.at(&TokenKind::Function) {
+            if self.at(&TokenKind::Struct) {
+                structs.push(self.parse_struct()?);
+            } else if self.at(&TokenKind::Enum) {
+                enums.push(self.parse_enum()?);
+            } else if self.at(&TokenKind::Function) {
                 functions.push(self.parse_function()?);
             } else {
-                return Err(self.err_here("Expected a `function` declaration"));
+                return Err(self.err_here("Expected a `struct`, `enum`, or `function` declaration"));
             }
         }
-        Ok(Module { functions })
+        Ok(Module {
+            structs,
+            enums,
+            functions,
+        })
+    }
+
+    fn parse_struct(&mut self) -> Result<StructDecl, Diagnostic> {
+        let span = self.expect(&TokenKind::Struct, "`struct`")?;
+        let name = match self.advance() {
+            TokenKind::Identifier(name) => name,
+            _ => return Err(self.err_here("Expected struct name")),
+        };
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut fields = Vec::new();
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+            let fspan = self.peek_span();
+            let fname = match self.advance() {
+                TokenKind::Identifier(n) => n,
+                _ => return Err(self.err_here("Expected field name")),
+            };
+            self.expect(&TokenKind::Colon, "`:`")?;
+            let ty = self.parse_type()?;
+            fields.push(FieldDecl {
+                name: fname,
+                ty,
+                span: fspan,
+            });
+            if self.at(&TokenKind::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace, "`}`")?;
+        Ok(StructDecl { name, fields, span })
+    }
+
+    fn parse_enum(&mut self) -> Result<EnumDecl, Diagnostic> {
+        let span = self.expect(&TokenKind::Enum, "`enum`")?;
+        let name = match self.advance() {
+            TokenKind::Identifier(name) => name,
+            _ => return Err(self.err_here("Expected enum name")),
+        };
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut variants = Vec::new();
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+            let vspan = self.peek_span();
+            let vname = match self.advance() {
+                TokenKind::Identifier(n) => n,
+                _ => return Err(self.err_here("Expected variant name")),
+            };
+            let payload = if self.at(&TokenKind::LParen) {
+                self.advance();
+                let ty = self.parse_type()?;
+                self.expect(&TokenKind::RParen, "`)`")?;
+                Some(ty)
+            } else {
+                None
+            };
+            variants.push(EnumVariant {
+                name: vname,
+                payload,
+                span: vspan,
+            });
+            if self.at(&TokenKind::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace, "`}`")?;
+        Ok(EnumDecl {
+            name,
+            variants,
+            span,
+        })
     }
 
     fn parse_function(&mut self) -> Result<FunctionDecl, Diagnostic> {
@@ -405,9 +487,9 @@ impl Parser {
                 let callee = match &expr {
                     Expr::Ident(name, _) => name.clone(),
                     _ => {
-                        return Err(self.err_here(
-                            "Only simple function calls are supported in Phase 1",
-                        ))
+                        return Err(
+                            self.err_here("Only simple function calls are supported in Phase 1")
+                        )
                     }
                 };
                 expr = Expr::Call { callee, args, span };
@@ -439,7 +521,13 @@ impl Parser {
             TokenKind::CharLit(c) => Ok(Expr::CharLit(c, span)),
             TokenKind::True => Ok(Expr::Bool(true, span)),
             TokenKind::False => Ok(Expr::Bool(false, span)),
-            TokenKind::Identifier(name) => Ok(Expr::Ident(name, span)),
+            TokenKind::Identifier(name) => {
+                if self.at(&TokenKind::LBrace) {
+                    self.parse_struct_literal(name, span)
+                } else {
+                    Ok(Expr::Ident(name, span))
+                }
+            }
             TokenKind::LParen => {
                 let expr = self.parse_expr()?;
                 self.expect(&TokenKind::RParen, "`)`")?;
@@ -452,5 +540,26 @@ impl Parser {
                 &format!("Unexpected token {:?} in expression", other),
             )),
         }
+    }
+
+    fn parse_struct_literal(&mut self, name: String, span: Span) -> Result<Expr, Diagnostic> {
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut fields = Vec::new();
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+            let fname = match self.advance() {
+                TokenKind::Identifier(n) => n,
+                _ => return Err(self.err_here("Expected field name in struct literal")),
+            };
+            self.expect(&TokenKind::Colon, "`:`")?;
+            let value = self.parse_expr()?;
+            fields.push((fname, value));
+            if self.at(&TokenKind::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace, "`}`")?;
+        Ok(Expr::StructLit { name, fields, span })
     }
 }

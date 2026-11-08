@@ -88,6 +88,91 @@ fn parse_error_is_structured() {
 }
 
 #[test]
+fn struct_literal_and_field_access() {
+    let src = r#"
+struct Point { x: i32, y: i32 }
+
+function origin() -> Point {
+    return Point { x: 0, y: 0 };
+}
+
+function main() -> i32 {
+    let p = origin();
+    return p.x + p.y;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn missing_struct_field_detected() {
+    let src = r#"
+struct Point { x: i32, y: i32 }
+
+function main() -> i32 {
+    let p = Point { x: 0 };
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "MISSING_FIELD"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn unknown_struct_field_detected() {
+    let src = r#"
+struct Point { x: i32, y: i32 }
+
+function main() -> i32 {
+    let p = Point { x: 0, y: 0, z: 0 };
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "UNKNOWN_FIELD"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn struct_field_type_mismatch_detected() {
+    let src = r#"
+struct Point { x: i32, y: i32 }
+
+function main() -> i32 {
+    let p = Point { x: "zero", y: 0 };
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TYPE_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn enum_declaration_accepted() {
+    let src = r#"
+enum Color { Red, Green, Blue }
+
+function main() -> i32 {
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
 fn diagnostics_serialize_to_json() {
     let src = r#"
 function main() -> i32 {

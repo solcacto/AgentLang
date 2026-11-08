@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, type-checks, and emits structured JSON diagnostics. See `src/` and `tests/integration.rs`.
+> **Status:** Walking skeleton is working. `agent check` lexes, parses, type-checks (including structs/enums), and emits structured JSON diagnostics. See `src/` and `tests/integration.rs`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -13,10 +13,10 @@
 - [x] **Decide implementation language** (Rust)
 - [x] Create repo layout (`src/`, `tests/`, `examples/`, `docs/`)
 - [x] Set up `Cargo.toml`
-- [ ] Add CI workflow (build + test on push)
+- [x] Add CI workflow (build + test on push)
 - [x] Add `.gitignore`
 - [x] Choose CLI framework (hand-rolled arg parsing in `src/main.rs`)
-- [ ] Write `CONTRIBUTING.md` with build/test instructions
+- [x] Write `CONTRIBUTING.md` with build/test instructions
 - [x] Define the `.ag` file extension and `examples/hello.ag`
 
 ## Milestone 1 — Lexer (Tokenizer)
@@ -39,7 +39,7 @@
 - [x] Parse `let` bindings
 - [x] Parse expressions with correct precedence (binary, unary, calls, member access)
 - [x] Parse type expressions (named, generic like `Result<T, E>`, `Array<T>`)
-- [ ] Parse `struct` and `enum` declarations
+- [x] Parse `struct` and `enum` declarations
 - [ ] Error recovery: report a diagnostic and recover to the next statement (currently stops at first error)
 - [ ] Snapshot tests: source → AST
 
@@ -57,10 +57,10 @@
 
 ## Milestone 4 — Structs, Enums & Functions
 
-- [ ] Register struct definitions and their fields
-- [ ] Register enum definitions and variants
-- [ ] Type-check struct literal construction and field access
-- [ ] Type-check enum variant construction
+- [x] Register struct definitions and their fields
+- [x] Register enum definitions and variants
+- [x] Type-check struct literal construction and field access
+- [ ] Type-check enum variant construction (needs `Enum::Variant` syntax)
 - [ ] (Stretch) basic `match` on enums
 - [x] Type-check function declarations end-to-end
 - [x] Integrate with symbol table and type resolution

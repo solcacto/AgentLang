@@ -50,7 +50,18 @@ cargo run -- check examples/hello.ag
 
 # A program with a type error → JSON diagnostics on stdout, exit code 1
 cargo run -- check examples/bad.ag
+
+# Structs and field access
+cargo run -- check examples/structs.ag
 ```
+
+### Phase 1 language subset
+
+Currently supported: functions with typed parameters and `effects(...)`, `let`,
+`return`, arithmetic/comparison/logical operators, function calls, `struct`
+declarations with typed fields, struct literals, field access, and `enum`
+declarations. `Result`/`Option` construction, `?`, control flow, and `match`
+are upcoming (see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
 
 Example diagnostic output:
 

@@ -278,11 +278,7 @@ impl Lexer {
                 '\'' => self.lex_char(span)?,
                 c if c.is_ascii_digit() => self.lex_number(span)?,
                 c if is_ident_start(c) => self.lex_ident(),
-                other => {
-                    return Err(
-                        self.err(span, &format!("Unexpected character '{}'", other))
-                    )
-                }
+                other => return Err(self.err(span, &format!("Unexpected character '{}'", other))),
             };
 
             tokens.push(Token { kind, span });
