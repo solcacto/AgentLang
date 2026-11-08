@@ -1,0 +1,12 @@
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
+function label(c: Color) -> i32 {
+    return match c {
+        Color::Red => 1,
+        _ => 0,
+    };
+}

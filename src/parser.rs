@@ -15,6 +15,9 @@ pub struct Parser {
     pos: usize,
     file: String,
     diags: Vec<Diagnostic>,
+    /// When true, a bare identifier followed by `{` is *not* parsed as a struct
+    /// literal. Used for the scrutinee of `match`, where `{` opens the arms.
+    suppress_struct_lit: bool,
 }
 
 impl Parser {
@@ -24,6 +27,7 @@ impl Parser {
             pos: 0,
             file: file.to_string(),
             diags: Vec::new(),
+            suppress_struct_lit: false,
         }
     }
 
@@ -626,10 +630,18 @@ impl Parser {
 
     fn parse_args(&mut self) -> Result<Vec<Expr>, Diagnostic> {
         self.expect(&TokenKind::LParen, "`(`")?;
+        let saved = self.suppress_struct_lit;
+        self.suppress_struct_lit = false;
         let mut args = Vec::new();
         if !self.at(&TokenKind::RParen) {
             loop {
-                args.push(self.parse_expr()?);
+                match self.parse_expr() {
+                    Ok(arg) => args.push(arg),
+                    Err(diag) => {
+                        self.suppress_struct_lit = saved;
+                        return Err(diag);
+                    }
+                }
                 if self.at(&TokenKind::Comma) {
                     self.advance();
                 } else {
@@ -637,6 +649,7 @@ impl Parser {
                 }
             }
         }
+        self.suppress_struct_lit = saved;
         self.expect(&TokenKind::RParen, "`)`")?;
         Ok(args)
     }
@@ -653,7 +666,7 @@ impl Parser {
             TokenKind::Identifier(name) => {
                 if self.at(&TokenKind::ColonColon) {
                     self.parse_variant(name, span)
-                } else if self.at(&TokenKind::LBrace) {
+                } else if self.at(&TokenKind::LBrace) && !self.suppress_struct_lit {
                     self.parse_struct_literal(name, span)
                 } else {
                     Ok(Expr::Ident(name, span))
@@ -672,8 +685,13 @@ impl Parser {
                     span,
                 })
             }
+            TokenKind::Match => self.parse_match(span),
             TokenKind::LParen => {
-                let expr = self.parse_expr()?;
+                let saved = self.suppress_struct_lit;
+                self.suppress_struct_lit = false;
+                let result = self.parse_expr();
+                self.suppress_struct_lit = saved;
+                let expr = result?;
                 self.expect(&TokenKind::RParen, "`)`")?;
                 Ok(Expr::Group(Box::new(expr)))
             }
@@ -722,6 +740,89 @@ impl Parser {
             enum_name,
             variant,
             payload,
+            span,
+        })
+    }
+
+    fn parse_match(&mut self, span: Span) -> Result<Expr, Diagnostic> {
+        let saved = self.suppress_struct_lit;
+        self.suppress_struct_lit = true;
+        let scrutinee = self.parse_expr();
+        self.suppress_struct_lit = saved;
+        let scrutinee = scrutinee?;
+
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut arms = Vec::new();
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+            let arm_span = self.peek_span();
+            let pattern = self.parse_pattern()?;
+            self.expect(&TokenKind::FatArrow, "`=>`")?;
+            let body = self.parse_expr()?;
+            arms.push(MatchArm {
+                pattern,
+                body,
+                span: arm_span,
+            });
+            if self.at(&TokenKind::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace, "`}`")?;
+
+        if arms.is_empty() {
+            return Err(self.err_here("A `match` expression needs at least one arm"));
+        }
+
+        Ok(Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms,
+            span,
+        })
+    }
+
+    fn parse_pattern(&mut self) -> Result<Pattern, Diagnostic> {
+        let span = self.peek_span();
+        let name = match self.advance() {
+            TokenKind::Identifier(n) => n,
+            _ => return Err(self.err_here("Expected a pattern (variant name or `_`)")),
+        };
+
+        if name == "_" {
+            return Ok(Pattern::Wildcard { span });
+        }
+
+        let (enum_name, variant) = if self.at(&TokenKind::ColonColon) {
+            self.advance();
+            let variant = match self.advance() {
+                TokenKind::Identifier(v) => v,
+                _ => return Err(self.err_here("Expected variant name after `::`")),
+            };
+            (Some(name), variant)
+        } else {
+            (None, name)
+        };
+
+        let (has_parens, binding) = if self.at(&TokenKind::LParen) {
+            self.advance();
+            let binding = match self.advance() {
+                TokenKind::Identifier(n) => Some(n),
+                _ => {
+                    return Err(self.err_here("Expected a binding name (or `_`) in variant pattern"))
+                }
+            };
+            self.expect(&TokenKind::RParen, "`)`")?;
+            (true, binding)
+        } else {
+            (false, None)
+        };
+
+        Ok(Pattern::Variant {
+            enum_name,
+            variant,
+            has_parens,
+            binding,
             span,
         })
     }

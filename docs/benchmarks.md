@@ -85,12 +85,12 @@ and fails if the oracle cannot resolve every task.
 
 ## Baseline
 
-Recorded 2026-11-09 on the six-task corpus (`01_ok_baseline` … `06_invalid_try`):
+Recorded 2026-11-09 on the seven-task corpus (`01_ok_baseline` … `07_non_exhaustive_match`):
 
 | Metric | Value |
 | --- | --- |
-| First-pass clean | 1 / 6 |
-| Resolved with oracle | 6 / 6 |
+| First-pass clean | 1 / 7 |
+| Resolved with oracle | 7 / 7 |
 | Mean iterations (non-clean) | 1.0 |
 | Unresolved | 0 |
 

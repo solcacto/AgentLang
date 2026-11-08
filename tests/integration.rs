@@ -471,3 +471,181 @@ fn noop_repairer_leaves_broken_tasks_unresolved() {
     assert_eq!(report.unresolved, report.total - report.first_pass_ok);
     assert_eq!(report.avg_iterations, 0.0);
 }
+
+#[test]
+fn match_on_user_enum() {
+    let src = r#"
+enum Shape {
+    Circle(i32),
+    Square(i32),
+}
+
+function area(shape: Shape) -> i32 {
+    return match shape {
+        Shape::Circle(radius) => radius * radius * 3,
+        Shape::Square(side) => side * side,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn match_on_option_and_result() {
+    let src = r#"
+function unwrap_or_zero(value: Option<i32>) -> i32 {
+    return match value {
+        Option::Some(v) => v,
+        Option::None => 0,
+    };
+}
+
+function result_or_zero(value: Result<i32, String>) -> i32 {
+    return match value {
+        Ok(v) => v,
+        _ => 0,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn wildcard_makes_match_exhaustive() {
+    let src = r#"
+enum Color { Red, Green, Blue }
+
+function label(c: Color) -> i32 {
+    return match c {
+        Color::Red => 1,
+        _ => 0,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn non_exhaustive_match_detected() {
+    let src = r#"
+enum Color { Red, Green, Blue }
+
+function label(c: Color) -> i32 {
+    return match c {
+        Color::Red => 1,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    let missing: Vec<&str> = diags
+        .iter()
+        .filter(|d| d.code == "NON_EXHAUSTIVE_MATCH")
+        .filter_map(|d| d.symbol.as_deref())
+        .collect();
+    assert!(missing.contains(&"Green"), "got {:?}", diags);
+    assert!(missing.contains(&"Blue"), "got {:?}", diags);
+}
+
+#[test]
+fn duplicate_match_arm_detected() {
+    let src = r#"
+enum Color { Red, Green }
+
+function label(c: Color) -> i32 {
+    return match c {
+        Color::Red => 1,
+        Color::Red => 2,
+        Color::Green => 3,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "DUPLICATE_MATCH_ARM"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn match_arm_type_mismatch_detected() {
+    let src = r#"
+enum Color { Red, Green }
+
+function label(c: Color) -> i32 {
+    return match c {
+        Color::Red => 1,
+        Color::Green => "green",
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "TYPE_MISMATCH" && d.line == 7),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn unknown_variant_in_pattern_detected() {
+    let src = r#"
+enum Color { Red, Green }
+
+function label(c: Color) -> i32 {
+    return match c {
+        Color::Purple => 1,
+        _ => 0,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "UNKNOWN_VARIANT"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn match_payload_binding_has_variant_type() {
+    let src = r#"
+enum Shape { Circle(String) }
+
+function area(shape: Shape) -> i32 {
+    return match shape {
+        Shape::Circle(radius) => radius,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TYPE_MISMATCH"),
+        "expected a type mismatch using a String payload as i32, got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn match_variant_pattern_requires_payload_binding() {
+    let src = r#"
+enum Shape { Circle(i32) }
+
+function area(shape: Shape) -> i32 {
+    return match shape {
+        Shape::Circle => 1,
+    };
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "ARITY_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}

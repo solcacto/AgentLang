@@ -1,0 +1,23 @@
+enum Shape {
+    Circle(i32),
+    Square(i32),
+}
+
+function area(shape: Shape) -> i32 {
+    return match shape {
+        Shape::Circle(radius) => radius * radius * 3,
+        Shape::Square(side) => side * side,
+    };
+}
+
+function get_or_zero(value: Option<i32>) -> i32 {
+    return match value {
+        Option::Some(v) => v,
+        Option::None => 0,
+    };
+}
+
+function main() -> i32 {
+    let shape = Shape::Circle(2);
+    return area(shape) + get_or_zero(Option::Some(1));
+}

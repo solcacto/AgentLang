@@ -150,7 +150,46 @@ pub enum Expr {
         body: Box<Expr>,
         span: Span,
     },
+    /// A `match` expression, e.g. `match opt { Option::Some(x) => x, _ => 0 }`.
+    Match {
+        scrutinee: Box<Expr>,
+        arms: Vec<MatchArm>,
+        span: Span,
+    },
     Group(Box<Expr>),
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    pub pattern: Pattern,
+    pub body: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    /// `_`
+    Wildcard { span: Span },
+    /// An enum variant pattern, optionally with a payload binding:
+    /// `Color::Red`, `Option::Some(x)`, `Some(x)`, `None`.
+    Variant {
+        /// `Some` in `Option::Some`; `None` when the pattern is unqualified.
+        enum_name: Option<String>,
+        variant: String,
+        /// Whether the pattern wrote `(...)` after the variant name.
+        has_parens: bool,
+        /// The name bound to the payload, if any (`_` means "ignore").
+        binding: Option<String>,
+        span: Span,
+    },
+}
+
+impl Pattern {
+    pub fn span(&self) -> Span {
+        match self {
+            Pattern::Wildcard { span } | Pattern::Variant { span, .. } => *span,
+        }
+    }
 }
 
 impl Expr {
@@ -170,7 +209,8 @@ impl Expr {
             | Expr::Variant { span, .. }
             | Expr::MethodCall { span, .. }
             | Expr::Try { span, .. }
-            | Expr::Lambda { span, .. } => *span,
+            | Expr::Lambda { span, .. }
+            | Expr::Match { span, .. } => *span,
             Expr::Group(e) => e.span(),
         }
     }

@@ -59,6 +59,9 @@ cargo run -- check examples/option.ag
 cargo run -- check examples/result.ag
 cargo run -- check examples/map.ag
 
+# Pattern matching on enums, Option, and Result
+cargo run -- check examples/match.ag
+
 # Self-repair benchmark suite (oracle baseline by default)
 cargo run -- bench
 cargo run -- bench benchmarks --repairer none --max-iters 3
@@ -73,8 +76,9 @@ declarations and `Enum::Variant` construction (with payloads), built-in
 `Option<T>`/`Result<T, E>` construction (`Some`/`None`/`Ok`/`Err` and
 `Option::*`/`Result::*`), the `?` operator, closures as `.map` arguments, and
 the methods `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`,
-`is_err`. Control flow and `match` are upcoming (see
-[`PHASE1_TODO.md`](PHASE1_TODO.md)).
+`is_err`, and `match` over enums/`Option`/`Result` (with payload binding,
+wildcards, and exhaustiveness checking). Control flow (`if` loops) is upcoming
+(see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
 
 Example diagnostic output:
 

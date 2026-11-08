@@ -62,7 +62,7 @@
 - [x] Register enum definitions and variants
 - [x] Type-check struct literal construction and field access
 - [x] Type-check enum variant construction (`Enum::Variant`, with payloads)
-- [ ] (Stretch) basic `match` on enums
+- [x] Basic `match` on enums with payload binding, wildcard arms, and exhaustiveness checks
 - [x] Type-check function declarations end-to-end
 - [x] Integrate with symbol table and type resolution
 
@@ -107,13 +107,13 @@
 
 ## Baseline (recorded 2026-11-09)
 
-`agent bench benchmarks` over six tasks (`benchmarks/01_ok_baseline` … `06_invalid_try`):
+`agent bench benchmarks` over seven tasks (`benchmarks/01_ok_baseline` … `07_non_exhaustive_match`):
 
 | Metric | Value |
 | --- | --- |
-| Tasks | 6 |
-| First-pass clean | 1 / 6 (the intentional baseline task) |
-| Resolved with oracle repair | 6 / 6 |
+| Tasks | 7 |
+| First-pass clean | 1 / 7 (the intentional baseline task) |
+| Resolved with oracle repair | 7 / 7 |
 | Mean repair iterations (non-clean tasks) | 1.0 |
 | Remaining unresolved | 0 |
 

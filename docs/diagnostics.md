@@ -77,6 +77,9 @@ Optional fields are omitted when absent.
 | `TRY_TYPE_MISMATCH` | `?` propagates a different error type than the function returns |
 | `EXPECTED_LAMBDA` | `.map` was given a non-closure argument |
 | `UNSUPPORTED_LAMBDA` | Closure used outside a supported position |
+| `NOT_AN_ENUM` | `match` uses variant patterns on a non-enum value |
+| `NON_EXHAUSTIVE_MATCH` | `match` does not cover every variant |
+| `DUPLICATE_MATCH_ARM` | Two arms match the same enum variant |
 
 ## Contract for agents
 

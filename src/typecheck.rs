@@ -440,6 +440,244 @@ impl<'a> TypeChecker<'a> {
                 ));
                 Ty::Unknown
             }
+            Expr::Match {
+                scrutinee,
+                arms,
+                span,
+            } => self.check_match(scrutinee, arms, *span, diags),
+        }
+    }
+
+    fn enum_variants_of(&self, ty: &Ty) -> Option<HashMap<String, Option<Ty>>> {
+        match ty {
+            Ty::Named(name) => self.enums.get(name).cloned(),
+            Ty::Option(inner) => {
+                let mut variants = HashMap::new();
+                variants.insert("Some".to_string(), Some((**inner).clone()));
+                variants.insert("None".to_string(), None);
+                Some(variants)
+            }
+            Ty::Result(ok, err) => {
+                let mut variants = HashMap::new();
+                variants.insert("Ok".to_string(), Some((**ok).clone()));
+                variants.insert("Err".to_string(), Some((**err).clone()));
+                Some(variants)
+            }
+            _ => None,
+        }
+    }
+
+    fn check_match(
+        &mut self,
+        scrutinee: &Expr,
+        arms: &[MatchArm],
+        span: Span,
+        diags: &mut Vec<Diagnostic>,
+    ) -> Ty {
+        let scrutinee_ty = self.check_expr(scrutinee, diags);
+        let variants = self.enum_variants_of(&scrutinee_ty);
+
+        // Variant patterns only make sense on an enum. Report once, rather than
+        // per arm, when the scrutinee is a known non-enum type.
+        let has_variant_pattern = arms
+            .iter()
+            .any(|arm| matches!(arm.pattern, Pattern::Variant { .. }));
+        if variants.is_none() && has_variant_pattern && !matches!(scrutinee_ty, Ty::Unknown) {
+            diags.push(
+                Diagnostic::error(
+                    "NOT_AN_ENUM",
+                    self.file,
+                    span,
+                    &format!(
+                        "`match` variant patterns require an enum, found `{}`",
+                        scrutinee_ty
+                    ),
+                )
+                .with_types("<enum>", &scrutinee_ty.to_string()),
+            );
+        }
+
+        let mut covered: HashSet<String> = HashSet::new();
+        let mut saw_wildcard = false;
+        let mut result_ty: Option<Ty> = None;
+
+        for arm in arms {
+            self.scopes.push(HashMap::new());
+
+            if let Some(variants) = &variants {
+                self.check_pattern(
+                    &arm.pattern,
+                    variants,
+                    &scrutinee_ty,
+                    &mut covered,
+                    &mut saw_wildcard,
+                    diags,
+                );
+            } else if matches!(arm.pattern, Pattern::Wildcard { .. }) {
+                saw_wildcard = true;
+            }
+
+            let body_ty = self.check_expr(&arm.body, diags);
+            self.scopes.pop();
+
+            match &result_ty {
+                None => result_ty = Some(body_ty),
+                Some(expected) => {
+                    if !compatible(expected, &body_ty) {
+                        diags.push(
+                            Diagnostic::error(
+                                "TYPE_MISMATCH",
+                                self.file,
+                                arm.body.span(),
+                                &format!(
+                                    "`match` arm type mismatch: expected `{}`, found `{}`",
+                                    expected, body_ty
+                                ),
+                            )
+                            .with_types(&expected.to_string(), &body_ty.to_string())
+                            .with_repair(
+                                "replace_expression",
+                                None,
+                                Some(&expected.to_string()),
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+
+        if let Some(variants) = &variants {
+            if !saw_wildcard {
+                let mut missing: Vec<&String> = variants
+                    .keys()
+                    .filter(|name| !covered.contains(*name))
+                    .collect();
+                missing.sort();
+                for name in missing {
+                    diags.push(
+                        Diagnostic::error(
+                            "NON_EXHAUSTIVE_MATCH",
+                            self.file,
+                            span,
+                            &format!("Non-exhaustive `match`: no arm covers variant `{}`", name),
+                        )
+                        .with_symbol(name)
+                        .with_repair("add_match_arm", Some(name), None),
+                    );
+                }
+            }
+        }
+
+        result_ty.unwrap_or(Ty::Unknown)
+    }
+
+    fn check_pattern(
+        &mut self,
+        pattern: &Pattern,
+        variants: &HashMap<String, Option<Ty>>,
+        scrutinee_ty: &Ty,
+        covered: &mut HashSet<String>,
+        saw_wildcard: &mut bool,
+        diags: &mut Vec<Diagnostic>,
+    ) {
+        let Pattern::Variant {
+            enum_name,
+            variant,
+            has_parens,
+            binding,
+            span,
+        } = pattern
+        else {
+            *saw_wildcard = true;
+            return;
+        };
+
+        if let Some(qualified) = enum_name {
+            let actual = match scrutinee_ty {
+                Ty::Named(name) => name.as_str(),
+                Ty::Option(_) => "Option",
+                Ty::Result(_, _) => "Result",
+                _ => "",
+            };
+            if qualified != actual {
+                diags.push(
+                    Diagnostic::error(
+                        "TYPE_MISMATCH",
+                        self.file,
+                        *span,
+                        &format!(
+                            "Pattern `{}::{}` does not match scrutinee type `{}`",
+                            qualified, variant, scrutinee_ty
+                        ),
+                    )
+                    .with_symbol(variant)
+                    .with_types(actual, qualified),
+                );
+            }
+        }
+
+        match variants.get(variant) {
+            None => {
+                diags.push(
+                    Diagnostic::error(
+                        "UNKNOWN_VARIANT",
+                        self.file,
+                        *span,
+                        &format!("`{}` has no variant `{}`", scrutinee_ty, variant),
+                    )
+                    .with_symbol(variant)
+                    .with_repair("rename_symbol", Some(variant), None),
+                );
+            }
+            Some(None) => {
+                if *has_parens {
+                    diags.push(
+                        Diagnostic::error(
+                            "ARITY_MISMATCH",
+                            self.file,
+                            *span,
+                            &format!("Variant `{}` takes no payload", variant),
+                        )
+                        .with_types("0 payload(s)", "1 payload"),
+                    );
+                }
+            }
+            Some(Some(payload_ty)) => match binding {
+                Some(name) if *has_parens => {
+                    if name != "_" {
+                        self.scopes
+                            .last_mut()
+                            .unwrap()
+                            .insert(name.clone(), payload_ty.clone());
+                    }
+                }
+                _ => {
+                    diags.push(
+                        Diagnostic::error(
+                            "ARITY_MISMATCH",
+                            self.file,
+                            *span,
+                            &format!(
+                                "Variant `{}` has a `{}` payload; bind it as `{}(name)`",
+                                variant, payload_ty, variant
+                            ),
+                        )
+                        .with_types("1 payload(s)", "0 payloads"),
+                    );
+                }
+            },
+        }
+
+        if !covered.insert(variant.clone()) {
+            diags.push(
+                Diagnostic::error(
+                    "DUPLICATE_MATCH_ARM",
+                    self.file,
+                    *span,
+                    &format!("Variant `{}` is matched more than once", variant),
+                )
+                .with_symbol(variant),
+            );
         }
     }
 
