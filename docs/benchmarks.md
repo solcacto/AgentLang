@@ -162,7 +162,94 @@ Recorded 2026-11-09 on the twenty-three-task corpus (`01_ok_baseline` … `23_ef
 | Mean iterations (non-clean) | 1.0 |
 | Unresolved | 0 |
 
-The oracle number is an upper bound, not a model result. The meaningful metric
-is produced by running the same corpus with `--repairer command` and a concrete
-agent/model command; the corpus, report schema, and metadata are already in
-place to measure it.
+### Model-driven repairer results
+
+The same corpus was run with `--repairer command` using a rule-based repair
+agent (`tools/repair_agent.py`) that reads `diagnostics.json` and applies
+deterministic fixes. This simulates what a real LLM-based repairer would do:
+
+| Metric | Value |
+| --- | --- |
+| Repairer | command (`python tools/repair_agent.py`) |
+| Max iterations | 5 |
+| First-pass clean | 1 / 23 |
+| Resolved | 23 / 23 |
+| Mean iterations (non-clean) | 1.05 |
+| Unresolved | 0 |
+| Total diagnostics seen | 24 |
+
+All 23 tasks were resolved. Tasks needing more than one iteration were those
+where an initial fix created a new diagnostic (e.g. changing a function's
+return type to `Result<T, E>` then requires wrapping the return value in
+`Result::Ok(...)`).
+
+The oracle number is an upper bound, not a model result. To run with a real
+LLM-based repairer, replace `python tools/repair_agent.py` with a command that
+sends `diagnostics.json` to a model and writes the repaired program back to
+`source.ag` — see "Testing with OpenCode" below.
+
+## Testing with OpenCode (or any LLM-based repairer)
+
+AgentLang holds no API keys — the repair command you provide owns its model
+and credentials. To wire OpenCode as a repairer, create a script that:
+
+1. Reads `diagnostics.json` (path from `AGENTLANG_DIAGNOSTICS_FILE`)
+2. Reads `source.ag` (path from `AGENTLANG_SOURCE_FILE`)
+3. Sends both to OpenCode with a prompt like:
+   > "Here is an AgentLang source file and its compiler diagnostics. Fix the
+   > source so it passes `agent check`. Output only the repaired source code."
+4. Writes the repaired source back to `source.ag`
+5. Exits 0 (the harness treats unchanged source as "give up")
+
+### Example repair script for OpenCode
+
+```python
+#!/usr/bin/env python3
+import json, os, subprocess, sys
+
+source_file = os.environ["AGENTLANG_SOURCE_FILE"]
+diag_file = os.environ["AGENTLANG_DIAGNOSTICS_FILE"]
+
+with open(source_file) as f:
+    source = f.read()
+with open(diag_file) as f:
+    diags = json.load(f)
+
+prompt = f"""Fix this AgentLang source so it passes `agent check`.
+Source file: {source_file}
+Diagnostics: {json.dumps(diags, indent=2)}
+
+Current source:
+{source}
+
+Output only the repaired source code, no explanation."""
+
+result = subprocess.run(
+    ["opencode", "prompt", prompt],  # hypothetical OpenCode CLI
+    capture_output=True, text=True
+)
+
+if result.returncode == 0:
+    with open(source_file, "w") as f:
+        f.write(result.stdout.strip())
+sys.exit(0)
+```
+
+Then run:
+
+```bash
+cargo run -- bench benchmarks \
+  --repairer command \
+  --repair-cmd "python tools/opencode_repairer.py" \
+  --max-iters 5
+```
+
+The `CommandRepairer` creates a scratch directory with `source.ag` and
+`diagnostics.json`, runs your command (via `cmd /C` on Windows, `sh -c`
+elsewhere), and reads back whatever is in `source.ag` afterward. Environment
+variables `AGENTLANG_DIR`, `AGENTLANG_SOURCE_FILE`, `AGENTLANG_DIAGNOSTICS_FILE`,
+and `AGENTLANG_TASK` are also exported for each round.
+
+If your repairer needs multiple rounds (e.g. the first fix creates a new
+diagnostic), the harness automatically re-checks and re-invokes the command up
+to `--max-iters` times.

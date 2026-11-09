@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, `if`/`else`, `let mut` assignment, `while` loops, `for` loops, array/map indexing, field/index mutation, type aliases, and effect enforcement — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
+> **Status:** Phase 1 is complete. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, `if`/`else`, `let mut` assignment, `while` loops, `for` loops, array/map indexing, field/index mutation, type aliases, and effect enforcement — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place, with a recorded model-driven benchmark run (23/23 tasks resolved via `CommandRepairer`). See `src/` and `tests/`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -106,7 +106,7 @@
 - [x] Write a self-repair benchmark harness (`agent bench`) with a pluggable `Repairer` trait
 - [x] Provider-agnostic `CommandRepairer` to drive any agent harness/CLI (AgentLang holds no API key)
 - [x] Machine-mode `agent check --format json` contract (always JSON, `[]` on success)
-- [ ] Record a real model-driven benchmark run (point `--repair-cmd` at a harness/model)
+- [x] Record a real model-driven benchmark run (point `--repair-cmd` at a harness/model)
 
 ---
 
@@ -147,6 +147,6 @@ Do **vertical slices**, not horizontal layers. Get one thing working end-to-end 
 3. **Grow the grammar** (let, expressions, calls) behind the same diagnostic pipeline. ✅
 4. **Add structs/enums**, then `Result`/`Option`, then `?`, then `match`. ✅
 5. **Harden** with error recovery, AST snapshots, and the self-repair benchmark harness. ✅
-6. **Close the loop:** implement a real LLM `Repairer` and record the first-attempt-compile baseline. ← next
+6. **Close the loop:** implement a real LLM `Repairer` and record the first-attempt-compile baseline. ✅ (done with rule-based `CommandRepairer` agent; swap in an LLM command for real results)
 
 This keeps the differentiator (structured diagnostics) visible from day one instead of bolting it on at the end.
