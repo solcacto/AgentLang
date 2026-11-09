@@ -649,3 +649,129 @@ function area(shape: Shape) -> i32 {
         diags
     );
 }
+
+#[test]
+fn bench_report_includes_metadata() {
+    let tasks = load_tasks(&benchmarks_dir()).expect("load benchmarks");
+    let mut repairer = OracleRepairer;
+    let report = run_suite(&tasks, &mut repairer, 5);
+
+    assert_eq!(report.metadata.tool, "agentlang");
+    assert_eq!(report.metadata.version, env!("CARGO_PKG_VERSION"));
+    assert_eq!(report.metadata.repairer, "oracle");
+    assert_eq!(report.metadata.max_iters, 5);
+}
+
+#[test]
+fn command_repairer_edits_source_in_place() {
+    use agentlang::bench::{CommandRepairer, Repairer, Task};
+
+    let dir = std::env::temp_dir().join(format!("agentlang-cmd-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("create test dir");
+    let script = if cfg!(windows) {
+        dir.join("repair.cmd")
+    } else {
+        dir.join("repair.sh")
+    };
+    if cfg!(windows) {
+        std::fs::write(
+            &script,
+            "@echo off\r\necho.>> \"%AGENTLANG_SOURCE_FILE%\"\r\n",
+        )
+        .expect("write script");
+    } else {
+        std::fs::write(&script, "#!/bin/sh\necho >> \"$AGENTLANG_SOURCE_FILE\"\n")
+            .expect("write script");
+    }
+    let command = if cfg!(windows) {
+        script.display().to_string()
+    } else {
+        format!("sh \"{}\"", script.display())
+    };
+
+    let broken = "function main() -> i32 {\n    return \"bad\";\n}\n";
+    let task = Task {
+        name: "cmd_test".to_string(),
+        broken: broken.to_string(),
+        fixed: String::new(),
+    };
+    let diags = check_source(broken, "test.ag");
+    let mut repairer = CommandRepairer::new(command);
+    let repaired = repairer
+        .repair(&task, broken, &diags)
+        .expect("command should modify the source");
+
+    assert!(
+        repaired.starts_with(broken),
+        "expected the original source plus an appended line, got {:?}",
+        repaired
+    );
+    assert!(repaired.len() > broken.len());
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn command_repairer_returns_none_when_source_is_unchanged() {
+    use agentlang::bench::{CommandRepairer, Repairer, Task};
+
+    let command = if cfg!(windows) {
+        "exit /b 0".to_string()
+    } else {
+        "true".to_string()
+    };
+    let source = "function main() -> i32 {\n    return 0;\n}\n";
+    let task = Task {
+        name: "noop".to_string(),
+        broken: source.to_string(),
+        fixed: String::new(),
+    };
+    let diags = check_source(source, "test.ag");
+    let mut repairer = CommandRepairer::new(command);
+
+    assert!(repairer.repair(&task, source, &diags).is_none());
+}
+
+#[test]
+fn cli_check_format_json_always_emits_json() {
+    use std::process::Command;
+
+    let exe = env!("CARGO_BIN_EXE_agent");
+    let dir = std::env::temp_dir().join(format!("agentlang-cli-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("create test dir");
+
+    let bad = dir.join("bad.ag");
+    std::fs::write(&bad, "function main() -> i32 {\n    return \"nope\";\n}\n")
+        .expect("write bad source");
+    let output = Command::new(exe)
+        .arg("check")
+        .arg("--format")
+        .arg("json")
+        .arg(&bad)
+        .output()
+        .expect("run agent check");
+    assert_eq!(output.status.code(), Some(1));
+    let json: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout should be JSON");
+    assert!(json
+        .as_array()
+        .expect("array")
+        .iter()
+        .any(|diag| diag["code"] == "TYPE_MISMATCH"));
+
+    let good = dir.join("good.ag");
+    std::fs::write(&good, "function main() -> i32 {\n    return 0;\n}\n")
+        .expect("write good source");
+    let output = Command::new(exe)
+        .arg("check")
+        .arg("--json")
+        .arg(&good)
+        .output()
+        .expect("run agent check");
+    assert!(output.status.success());
+    let json: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout should be JSON");
+    assert_eq!(json, serde_json::json!([]));
+
+    std::fs::remove_dir_all(&dir).ok();
+}

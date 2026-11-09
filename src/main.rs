@@ -32,7 +32,53 @@ fn main() -> ExitCode {
 }
 
 fn check(args: &[String]) -> ExitCode {
-    let file = match args.get(2) {
+    let mut file: Option<&str> = None;
+    let mut json = false;
+
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--format" => match args.get(i + 1).map(|value| value.as_str()) {
+                Some("json") => {
+                    json = true;
+                    i += 2;
+                }
+                Some("human") | Some("text") => {
+                    json = false;
+                    i += 2;
+                }
+                Some(other) => {
+                    eprintln!(
+                        "error: unknown format `{}` (expected `json` or `human`)",
+                        other
+                    );
+                    return ExitCode::from(2);
+                }
+                None => {
+                    eprintln!("error: `--format` requires a value (`json` or `human`)");
+                    return ExitCode::from(2);
+                }
+            },
+            "--json" => {
+                json = true;
+                i += 1;
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown option `{}`", other);
+                return ExitCode::from(2);
+            }
+            other => {
+                if file.is_some() {
+                    eprintln!("error: unexpected argument `{}`", other);
+                    return ExitCode::from(2);
+                }
+                file = Some(other);
+                i += 1;
+            }
+        }
+    }
+
+    let file = match file {
         Some(file) => file,
         None => {
             eprintln!("error: `agent check` requires a file path");
@@ -49,14 +95,28 @@ fn check(args: &[String]) -> ExitCode {
     };
 
     let diagnostics = agentlang::check_source(&source, file);
-    if diagnostics.is_empty() {
+
+    if json {
+        // Machine mode: always emit a JSON array (empty on success) to stdout.
+        match serde_json::to_string_pretty(&diagnostics) {
+            Ok(rendered) => println!("{}", rendered),
+            Err(err) => {
+                eprintln!("error: failed to serialize diagnostics: {}", err);
+                return ExitCode::from(2);
+            }
+        }
+    } else if diagnostics.is_empty() {
         println!("OK: {} passed all checks", file);
-        ExitCode::SUCCESS
     } else {
         match serde_json::to_string_pretty(&diagnostics) {
-            Ok(json) => println!("{}", json),
+            Ok(rendered) => println!("{}", rendered),
             Err(err) => eprintln!("error: failed to serialize diagnostics: {}", err),
         }
+    }
+
+    if diagnostics.is_empty() {
+        ExitCode::SUCCESS
+    } else {
         ExitCode::FAILURE
     }
 }
@@ -71,12 +131,15 @@ fn build(args: &[String]) -> ExitCode {
 }
 
 fn bench(args: &[String]) -> ExitCode {
-    use agentlang::bench::{load_tasks, run_suite, NoopRepairer, OracleRepairer, Repairer};
+    use agentlang::bench::{
+        load_tasks, run_suite, CommandRepairer, NoopRepairer, OracleRepairer, Repairer,
+    };
     use std::path::Path;
 
     let mut dir = String::from("benchmarks");
     let mut max_iters = 5usize;
-    let mut use_oracle = true;
+    let mut repairer_kind = String::from("oracle");
+    let mut repair_cmd: Option<String> = None;
 
     let mut i = 2;
     while i < args.len() {
@@ -86,16 +149,31 @@ fn bench(args: &[String]) -> ExitCode {
                     max_iters = value;
                     i += 2;
                 } else {
-                    i += 1;
+                    eprintln!("error: `--max-iters` requires an integer");
+                    return ExitCode::from(2);
                 }
             }
             "--repairer" => {
                 if let Some(value) = args.get(i + 1) {
-                    use_oracle = value != "none";
+                    repairer_kind = value.to_string();
                     i += 2;
                 } else {
-                    i += 1;
+                    eprintln!("error: `--repairer` requires a value (oracle|none|command)");
+                    return ExitCode::from(2);
                 }
+            }
+            "--repair-cmd" => {
+                if let Some(value) = args.get(i + 1) {
+                    repair_cmd = Some(value.to_string());
+                    i += 2;
+                } else {
+                    eprintln!("error: `--repair-cmd` requires a command string");
+                    return ExitCode::from(2);
+                }
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown option `{}`", other);
+                return ExitCode::from(2);
             }
             other => {
                 dir = other.to_string();
@@ -103,6 +181,27 @@ fn bench(args: &[String]) -> ExitCode {
             }
         }
     }
+
+    let mut repairer: Box<dyn Repairer> = match repairer_kind.as_str() {
+        "oracle" => Box::new(OracleRepairer),
+        "none" => Box::new(NoopRepairer),
+        "command" => match &repair_cmd {
+            Some(command) if !command.trim().is_empty() => {
+                Box::new(CommandRepairer::new(command.clone()))
+            }
+            _ => {
+                eprintln!("error: `--repairer command` requires `--repair-cmd <command>`");
+                return ExitCode::from(2);
+            }
+        },
+        other => {
+            eprintln!(
+                "error: unknown repairer `{}` (expected `oracle`, `none`, or `command`)",
+                other
+            );
+            return ExitCode::from(2);
+        }
+    };
 
     let tasks = match load_tasks(Path::new(&dir)) {
         Ok(tasks) => tasks,
@@ -116,15 +215,10 @@ fn bench(args: &[String]) -> ExitCode {
         return ExitCode::from(2);
     }
 
-    let mut repairer: Box<dyn Repairer> = if use_oracle {
-        Box::new(OracleRepairer)
-    } else {
-        Box::new(NoopRepairer)
-    };
     let report = run_suite(&tasks, repairer.as_mut(), max_iters);
 
     match serde_json::to_string_pretty(&report) {
-        Ok(json) => println!("{}", json),
+        Ok(rendered) => println!("{}", rendered),
         Err(err) => eprintln!("error: failed to serialize report: {}", err),
     }
 
@@ -140,9 +234,12 @@ fn print_usage() {
     eprintln!();
     eprintln!("Usage:");
     eprintln!("  agent check <file.ag>   Parse and type-check a source file");
+    eprintln!("      --format json       Always emit a JSON array to stdout ([] on success)");
+    eprintln!("      --json              Alias for `--format json`");
     eprintln!("  agent build <file.ag>   Compile a source file (stub in Phase 1)");
     eprintln!("  agent bench [dir]       Run the self-repair benchmark suite");
-    eprintln!("      --repairer oracle|none  Repairer to use (default: oracle)");
+    eprintln!("      --repairer oracle|none|command  Repairer to use (default: oracle)");
+    eprintln!("      --repair-cmd <cmd>  Shell command for `--repairer command`");
     eprintln!("      --max-iters <n>     Max repair rounds per task (default: 5)");
     eprintln!("  agent help              Show this help");
 }

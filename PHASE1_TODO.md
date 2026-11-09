@@ -92,7 +92,9 @@
 - [x] `agent check` always emits JSON on failure
 - [x] End-to-end test: broken `.ag` file → JSON → simulated fix → clean check
 - [x] Write a self-repair benchmark harness (`agent bench`) with a pluggable `Repairer` trait
-- [ ] Implement a real LLM `Repairer` adapter (currently `Oracle`/`Noop` baselines)
+- [x] Provider-agnostic `CommandRepairer` to drive any agent harness/CLI (AgentLang holds no API key)
+- [x] Machine-mode `agent check --format json` contract (always JSON, `[]` on success)
+- [ ] Record a real model-driven benchmark run (point `--repair-cmd` at a harness/model)
 
 ---
 

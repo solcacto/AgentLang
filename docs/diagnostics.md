@@ -46,6 +46,24 @@ human-readable log format.
 
 Optional fields are omitted when absent.
 
+## Machine mode
+
+By default `agent check` prints a human-readable `OK:` line on success. Agent
+harnesses should use machine mode, which always writes a JSON array to stdout and
+nothing else there:
+
+```bash
+agent check --format json path/to/file.ag
+agent check --json path/to/file.ag        # alias
+```
+
+- Exit code `0` — stdout is `[]`.
+- Exit code `1` — stdout is an array with one or more diagnostics.
+- Exit code `2` — usage or I/O error (stdout is not guaranteed to be JSON).
+
+This lets an agent call the compiler as a tool without guessing at the output
+format or parsing prose.
+
 ## Repair object
 
 | Field | Type | Description |

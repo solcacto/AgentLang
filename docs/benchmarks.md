@@ -32,18 +32,29 @@ cargo run -- bench benchmarks --repairer none
 
 # Custom directory and iteration budget.
 cargo run -- bench path/to/tasks --max-iters 10
+
+# Drive repairs through an external agent harness or CLI.
+cargo run -- bench benchmarks \
+  --repairer command \
+  --repair-cmd "my-agent --file {source}"
 ```
 
 Output is JSON. The command exits non-zero if any task is left unresolved.
 
 ```json
 {
-  "total": 6,
+  "metadata": {
+    "tool": "agentlang",
+    "version": "0.1.0",
+    "repairer": "oracle",
+    "max_iters": 5
+  },
+  "total": 7,
   "first_pass_ok": 1,
-  "fixed": 6,
+  "fixed": 7,
   "unresolved": 0,
   "avg_iterations": 1.0,
-  "total_diagnostics": 5
+  "total_diagnostics": 7
 }
 ```
 
@@ -63,17 +74,74 @@ implementations:
 - `OracleRepairer` — returns `task.fixed`, proving every task is repairable and
   establishing an upper bound.
 - `NoopRepairer` — always returns `None`, isolating first-pass behavior.
+- `CommandRepairer` — runs an external command and reads back the edited file
+  (see below).
 
-A real LLM adapter lives outside the core crate: serialize `source` and `diags`
-into a prompt, call the model, and return the rewritten program. The harness only
-cares that the returned source makes progress, so adapters can be swapped freely.
+A repairer only needs to make progress; the harness re-checks the result. That
+makes provider and harness choice irrelevant to the compiler.
+
+## Driving repairs with `CommandRepairer`
+
+This is the recommended integration for agent harnesses (OpenCode, Claude Code,
+custom scripts, local models). AgentLang does **not** hold credentials — the
+command you pass owns its model and API key.
+
+```bash
+cargo run -- bench benchmarks \
+  --repairer command \
+  --repair-cmd "my-agent --file {source}"
+```
+
+For each repair round the harness creates a scratch directory containing:
+
+| File | Meaning |
+| --- | --- |
+| `source.ag` | The current (broken) program. Rewrite it in place to repair. |
+| `diagnostics.json` | The current diagnostics as pretty-printed JSON |
+
+The command is run through the platform shell (`cmd /C` on Windows, `sh -c`
+elsewhere). The result is whatever `source.ag` contains afterwards. If the file
+is unchanged, the spawn fails, or the command exits non-zero, the task stops.
+
+### Placeholders
+
+| Placeholder | Value |
+| --- | --- |
+| `{dir}` | Scratch directory |
+| `{source}` | Path to `source.ag` |
+| `{diagnostics}` | Path to `diagnostics.json` |
+| `{task}` | Task name |
+
+The same values are exported as environment variables, which avoids quoting
+problems when paths contain spaces:
+
+| Variable | Value |
+| --- | --- |
+| `AGENTLANG_DIR` | Scratch directory |
+| `AGENTLANG_SOURCE_FILE` | Path to `source.ag` |
+| `AGENTLANG_DIAGNOSTICS_FILE` | Path to `diagnostics.json` |
+| `AGENTLANG_TASK` | Task name |
+
+A minimal repairer script (POSIX shell) that defers to another binary:
+
+```sh
+#!/bin/sh
+my-llm-fix --json "$AGENTLANG_DIAGNOSTICS_FILE" --out "$AGENTLANG_SOURCE_FILE"
+```
+
+### Reproducibility
+
+Reports record a `metadata` block with the tool, version, repairer, and
+`max_iters`. When comparing models, also note the model ID and prompt/command
+version outside the report — the same corpus with different models is not a
+like-for-like comparison.
 
 ## Adding a task
 
 Create a directory and a broken program, then a known-good version:
 
 ```text
-benchmarks/07_unknown_field/
+benchmarks/08_unknown_field/
 ├── broken.ag
 └── fixed.ag
 ```
@@ -95,5 +163,6 @@ Recorded 2026-11-09 on the seven-task corpus (`01_ok_baseline` … `07_non_exhau
 | Unresolved | 0 |
 
 The oracle number is an upper bound, not a model result. The meaningful metric
-will be produced once a concrete LLM `Repairer` is wired in; the corpus and
-report schema are already in place to measure it.
+is produced by running the same corpus with `--repairer command` and a concrete
+agent/model command; the corpus, report schema, and metadata are already in
+place to measure it.

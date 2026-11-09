@@ -62,9 +62,16 @@ cargo run -- check examples/map.ag
 # Pattern matching on enums, Option, and Result
 cargo run -- check examples/match.ag
 
+# Machine mode: always emit a JSON array (empty `[]` on success)
+cargo run -- check --format json examples/hello.ag
+cargo run -- check --json examples/bad.ag
+
 # Self-repair benchmark suite (oracle baseline by default)
 cargo run -- bench
 cargo run -- bench benchmarks --repairer none --max-iters 3
+
+# Drive the benchmark through any external agent/harness command
+cargo run -- bench benchmarks --repairer command --repair-cmd "my-agent --file {source}"
 ```
 
 ### Phase 1 language subset
@@ -115,8 +122,23 @@ cargo run -- bench benchmarks
 
 The default `OracleRepairer` returns the known-good source, which validates the
 loop and records an upper-bound baseline. `--repairer none` runs first-pass only.
-A real LLM adapter implements the same `Repairer` trait. See
-[`docs/benchmarks.md`](docs/benchmarks.md).
+
+For real runs, use `CommandRepairer` to plug in **any** agent harness or CLI.
+AgentLang never holds an API key — the harness owns its model and credentials:
+
+```bash
+cargo run -- bench benchmarks \
+  --repairer command \
+  --repair-cmd "my-agent --file {source}"
+```
+
+The command receives the current source at `{source}`, the diagnostics at
+`{diagnostics}`, and a scratch directory at `{dir}` (also available via
+`AGENTLANG_*` environment variables). It edits `source.ag` in place; the harness
+re-checks whatever comes back. See [`docs/benchmarks.md`](docs/benchmarks.md).
+
+Reports include a `metadata` block (`tool`, `version`, `repairer`, `max_iters`)
+so results can be tied to a specific build, repairer, and iteration budget.
 
 ## Documentation
 
