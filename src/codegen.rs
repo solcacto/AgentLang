@@ -174,19 +174,50 @@ impl Codegen {
             .map(|p| format!("{}: {}", p.name, self.type_expr_to_rust(&p.ty)))
             .collect();
 
-        // Rust's main must return () or Termination. Result<T, E> only
-        // implements Termination when T = (), so lower main's return to ().
-        // AgentLang return values from main are discarded.
         let is_main = func.name == "main";
         let prev_in_main = self.in_main;
         let prev_main_returns_unit = self.main_returns_unit;
         self.in_main = is_main;
-        self.main_returns_unit = true;
-        let ret_ty = if is_main {
-            "()".to_string()
+
+        // Determine main's Rust return type based on the declared AgentLang type
+        // and whether the body uses the `?` operator.
+        let (ret_ty, main_returns_unit, main_needs_exit) = if is_main {
+            match func.return_type.name.as_str() {
+                "Result" => {
+                    // main can return Result<(), E> which implements Termination.
+                    let err = func
+                        .return_type
+                        .args
+                        .get(1)
+                        .map(|a| self.type_expr_to_rust(a))
+                        .unwrap_or_else(|| "String".to_string());
+                    let uses_try = self.body_uses_try(&func.body);
+                    if uses_try {
+                        // main returns Result<(), E>; ? works naturally.
+                        (
+                            format!("Result<(), {}>", err),
+                            false, // main_returns_unit (it's Result)
+                            false, // main_needs_exit
+                        )
+                    } else {
+                        (format!("Result<(), {}>", err), false, false)
+                    }
+                }
+                "i32" | "i64" | "i8" | "i16" | "u8" | "u16" | "u32" | "u64" => {
+                    // Rust main can't return integers; use process::exit().
+                    (
+                        "()".to_string(),
+                        true,
+                        true, // main_needs_exit
+                    )
+                }
+                _ => ("()".to_string(), true, false),
+            }
         } else {
-            self.type_expr_to_rust(&func.return_type)
+            (self.type_expr_to_rust(&func.return_type), true, false)
         };
+
+        self.main_returns_unit = main_returns_unit;
         self.writeln(&format!(
             "fn {}({}) -> {} {{",
             func.name,
@@ -197,11 +228,92 @@ impl Codegen {
         for stmt in &func.body {
             self.lower_stmt(stmt);
         }
+        // If main didn't explicitly return, add an implicit terminator.
+        if is_main && !self.body_ends_with_return(&func.body) {
+            if main_needs_exit {
+                self.writeln("std::process::exit(0);");
+            } else if !main_returns_unit {
+                self.writeln("Ok(())");
+            } else {
+                self.writeln("return;");
+            }
+        }
         self.indent -= 1;
         self.writeln("}");
         self.writeln("");
         self.in_main = prev_in_main;
         self.main_returns_unit = prev_main_returns_unit;
+    }
+
+    /// Returns true if any statement in the body (recursively) contains a
+    /// `?` (Try) expression.
+    fn body_uses_try(&self, body: &[Stmt]) -> bool {
+        for stmt in body {
+            if self.stmt_uses_try(stmt) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn stmt_uses_try(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Let { value, .. } => self.expr_uses_try(value),
+            Stmt::Assign { value, .. } => self.expr_uses_try(value),
+            Stmt::Return { value, .. } => value
+                .as_ref()
+                .map(|e| self.expr_uses_try(e))
+                .unwrap_or(false),
+            Stmt::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                then_body.iter().any(|s| self.stmt_uses_try(s))
+                    || else_body
+                        .as_ref()
+                        .map(|b| b.iter().any(|s| self.stmt_uses_try(s)))
+                        .unwrap_or(false)
+            }
+            Stmt::While { body, .. } => body.iter().any(|s| self.stmt_uses_try(s)),
+            Stmt::For { body, .. } => body.iter().any(|s| self.stmt_uses_try(s)),
+            Stmt::Expr(expr) => self.expr_uses_try(expr),
+        }
+    }
+
+    fn expr_uses_try(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Try { .. } => true,
+            Expr::Binary { left, right, .. } => {
+                self.expr_uses_try(left) || self.expr_uses_try(right)
+            }
+            Expr::Unary { expr, .. } => self.expr_uses_try(expr),
+            Expr::Call { args, .. } => args.iter().any(|a| self.expr_uses_try(a)),
+            Expr::Member { object, .. } => self.expr_uses_try(object),
+            Expr::StructLit { fields, .. } => fields.iter().any(|(_, e)| self.expr_uses_try(e)),
+            Expr::Variant { payload, .. } => payload
+                .iter()
+                .any(|args| args.iter().any(|a| self.expr_uses_try(a))),
+            Expr::MethodCall { receiver, args, .. } => {
+                self.expr_uses_try(receiver) || args.iter().any(|a| self.expr_uses_try(a))
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => self.expr_uses_try(scrutinee) || arms.iter().any(|a| self.expr_uses_try(&a.body)),
+            Expr::Index { object, index, .. } => {
+                self.expr_uses_try(object) || self.expr_uses_try(index)
+            }
+            Expr::Group(inner) => self.expr_uses_try(inner),
+            _ => false,
+        }
+    }
+
+    /// Returns true if the last statement in the body is a Return.
+    fn body_ends_with_return(&self, body: &[Stmt]) -> bool {
+        match body.last() {
+            Some(Stmt::Return { .. }) => true,
+            _ => false,
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -247,10 +359,19 @@ impl Codegen {
             }
             Stmt::Return { value, span: _ } => match value {
                 Some(expr) => {
-                    if self.in_main && self.main_returns_unit {
-                        // Rust main returns (); discard the returned value.
+                    if self.in_main && !self.main_returns_unit {
+                        // main returns Result<(), E>; discard the Ok value.
+                        self.writeln("return Ok(());");
+                    } else if self.in_main && self.main_returns_unit {
+                        // main returns () with process::exit(); propagate the exit code.
                         let e = self.expr_to_rust(expr);
-                        self.writeln(&format!("{{ let _ = {}; return; }}", e));
+                        self.writeln(&format!(
+                            "{{
+                                let code = {} as i32;
+                                std::process::exit(code);
+                            }}",
+                            e
+                        ));
                     } else {
                         let val = self.expr_to_rust(expr);
                         self.writeln(&format!("return {};", val));
@@ -425,7 +546,13 @@ impl Codegen {
             }
             Expr::Try { expr, .. } => {
                 let e = self.expr_to_rust(expr);
-                format!("{}?", e)
+                if self.in_main && !self.main_returns_unit {
+                    // main returns Result<(), E>; ? must propagate errors but keep the Ok value.
+                    // Use match instead of ? to avoid From<i32> for () requirement.
+                    format!("match {} {{ Ok(v) => v, Err(e) => return Err(e) }}", e)
+                } else {
+                    format!("{}?", e)
+                }
             }
             Expr::Lambda { param, body, .. } => {
                 let b = self.expr_to_rust(body);

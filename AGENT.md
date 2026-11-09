@@ -71,15 +71,34 @@ rustc program.rs -o program
 | `enum Name { ... }` | `enum Name { ... }` |
 | `type Name = T;` | `type Name = T;` |
 | `for x in items { ... }` | `for x in items { ... }` |
-| `items[i]` | `items[i]` (index cast to `usize`) |
+| `items[i]` | `al_index(&items, i as i32)` (bounds-checked) |
+| `items[i] = v` | `al_index_mut(&mut items, i as i32) = v` |
 | `expr?` | `expr?` |
+
+### `main` special handling
+
+AgentLang `main` can declare any return type, but Rust's `main` must return `()`
+or a `Termination` type. The compiler handles this automatically:
+
+| AgentLang `main` return | Generated Rust |
+|-------------------------|----------------|
+| `-> i32` (or any int) | `fn main() -> ()` with `std::process::exit(code)` |
+| `-> Result<T, E>` | `fn main() -> Result<(), E>` with `?` support |
+| `-> ()` or anything else | `fn main() -> ()` |
+
+For `main` returning `i32`, `return 42;` becomes `std::process::exit(42)`.
+For `main` returning `Result<T, E>`, `?` works natively, and `return expr;`
+becomes `return Ok(());`. An implicit `Ok(())` or `std::process::exit(0)` is
+added if `main` doesn't end with a `return`.
 
 ### Limitations (Phase 2)
 
-- `main` always returns `()` in Rust; return values are discarded.
-- `?` cannot be used in `main` (use `match` on `Result`/`Option` instead).
-- Array indexing casts the index to `usize`; negative indices panic at runtime.
-- No runtime library is required; generated code uses only `std`.
+- Array indexing is bounds-checked via `al_index`/`al_index_mut`; out-of-bounds
+  access panics with an AgentLang-style message.
+- No runtime library is required; generated code uses only `std` plus the
+  inlined prelude functions.
+- `main` returning `Result<T, E>` and using `match` arms that return `T`
+  (instead of `Result<T, E>`) will fail type checking — use `?` instead.
 
 ## 4. Diagnostic JSON schema
 
