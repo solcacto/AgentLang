@@ -62,9 +62,11 @@ pub enum Stmt {
         value: Expr,
         span: Span,
     },
-    /// `name = expr;` — only valid for a binding declared with `let mut`.
+    /// `target = expr;` where `target` is a variable (`name`), a struct field
+    /// access (`point.x`), or an index expression (`items[0]`). The root binding
+    /// must have been declared with `let mut`.
     Assign {
-        name: String,
+        target: Box<Expr>,
         value: Expr,
         span: Span,
     },

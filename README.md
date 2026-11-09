@@ -71,6 +71,9 @@ cargo run -- check examples/loops.ag
 # for loops and array/map indexing
 cargo run -- check examples/collections.ag
 
+# Field and index mutation (requires let mut)
+cargo run -- check examples/mutation.ag
+
 # Machine mode: always emit a JSON array (empty `[]` on success)
 cargo run -- check --format json examples/hello.ag
 cargo run -- check --json examples/bad.ag
@@ -97,8 +100,7 @@ exhaustiveness checking), `if` / `else if` / `else` statements, `let mut`
 bindings with assignment, and `while` loops — all with block scoping and
 return-path checking. `for name in iterable { ... }` loops iterate over
 `Array<T>` (binding `T`) and `Map<K, V>` (binding `K`); `expr[index]` indexes
-arrays with `i32` and maps with `K`. Field/index mutation is upcoming
-(see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
+arrays with `i32` and maps with `K`. Assignment targets may be variables, struct fields (`point.x`), or index expressions (`items[0]`); the root binding must be declared with `let mut`.
 
 Example diagnostic output:
 

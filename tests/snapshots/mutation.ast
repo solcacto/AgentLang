@@ -1,0 +1,309 @@
+Module {
+    structs: [
+        StructDecl {
+            name: "Point",
+            fields: [
+                FieldDecl {
+                    name: "x",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 2,
+                            col: 8,
+                        },
+                    },
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+                FieldDecl {
+                    name: "y",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 3,
+                            col: 8,
+                        },
+                    },
+                    span: Span {
+                        line: 3,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+    ],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "move_x",
+            params: [
+                Param {
+                    name: "p",
+                    ty: TypeExpr {
+                        name: "Point",
+                        args: [],
+                        span: Span {
+                            line: 6,
+                            col: 20,
+                        },
+                    },
+                    span: Span {
+                        line: 6,
+                        col: 17,
+                    },
+                },
+                Param {
+                    name: "dx",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 6,
+                            col: 31,
+                        },
+                    },
+                    span: Span {
+                        line: 6,
+                        col: 27,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "Point",
+                args: [],
+                span: Span {
+                    line: 6,
+                    col: 39,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "q",
+                    mutable: true,
+                    value: Ident(
+                        "p",
+                        Span {
+                            line: 7,
+                            col: 17,
+                        },
+                    ),
+                    span: Span {
+                        line: 7,
+                        col: 5,
+                    },
+                },
+                Assign {
+                    target: Member {
+                        object: Ident(
+                            "q",
+                            Span {
+                                line: 8,
+                                col: 5,
+                            },
+                        ),
+                        field: "x",
+                        span: Span {
+                            line: 8,
+                            col: 6,
+                        },
+                    },
+                    value: Binary {
+                        op: Add,
+                        left: Member {
+                            object: Ident(
+                                "q",
+                                Span {
+                                    line: 8,
+                                    col: 11,
+                                },
+                            ),
+                            field: "x",
+                            span: Span {
+                                line: 8,
+                                col: 12,
+                            },
+                        },
+                        right: Ident(
+                            "dx",
+                            Span {
+                                line: 8,
+                                col: 17,
+                            },
+                        ),
+                        span: Span {
+                            line: 8,
+                            col: 15,
+                        },
+                    },
+                    span: Span {
+                        line: 8,
+                        col: 6,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Ident(
+                            "q",
+                            Span {
+                                line: 9,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 9,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 6,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "set_first",
+            params: [
+                Param {
+                    name: "items",
+                    ty: TypeExpr {
+                        name: "Array",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 12,
+                                    col: 33,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 12,
+                            col: 27,
+                        },
+                    },
+                    span: Span {
+                        line: 12,
+                        col: 20,
+                    },
+                },
+                Param {
+                    name: "v",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 12,
+                            col: 42,
+                        },
+                    },
+                    span: Span {
+                        line: 12,
+                        col: 39,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 12,
+                    col: 50,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "buf",
+                    mutable: true,
+                    value: Ident(
+                        "items",
+                        Span {
+                            line: 13,
+                            col: 19,
+                        },
+                    ),
+                    span: Span {
+                        line: 13,
+                        col: 5,
+                    },
+                },
+                Assign {
+                    target: Index {
+                        object: Ident(
+                            "buf",
+                            Span {
+                                line: 14,
+                                col: 5,
+                            },
+                        ),
+                        index: Integer(
+                            0,
+                            Span {
+                                line: 14,
+                                col: 9,
+                            },
+                        ),
+                        span: Span {
+                            line: 14,
+                            col: 8,
+                        },
+                    },
+                    value: Ident(
+                        "v",
+                        Span {
+                            line: 14,
+                            col: 14,
+                        },
+                    ),
+                    span: Span {
+                        line: 14,
+                        col: 8,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Index {
+                            object: Ident(
+                                "buf",
+                                Span {
+                                    line: 15,
+                                    col: 12,
+                                },
+                            ),
+                            index: Integer(
+                                0,
+                                Span {
+                                    line: 15,
+                                    col: 16,
+                                },
+                            ),
+                            span: Span {
+                                line: 15,
+                                col: 15,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 15,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 12,
+                col: 1,
+            },
+        },
+    ],
+}

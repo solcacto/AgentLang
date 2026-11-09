@@ -1225,3 +1225,136 @@ function main(items: Array<i32>) -> i32 {
         diags
     );
 }
+
+#[test]
+fn field_mutation_on_mutable_struct() {
+    let src = r#"
+struct Point {
+    x: i32,
+    y: i32,
+}
+function main() -> i32 {
+    let mut p = Point { x: 1, y: 2 };
+    p.x = 10;
+    return p.x;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn field_mutation_on_immutable_binding_rejected() {
+    let src = r#"
+struct Point {
+    x: i32,
+    y: i32,
+}
+function main() -> i32 {
+    let p = Point { x: 1, y: 2 };
+    p.x = 10;
+    return p.x;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "IMMUTABLE_ASSIGNMENT"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_mutation_on_mutable_array() {
+    let src = r#"
+function set_first(items: Array<i32>, v: i32) -> i32 {
+    let mut buf = items;
+    buf[0] = v;
+    return buf[0];
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn index_mutation_on_immutable_binding_rejected() {
+    let src = r#"
+function main(items: Array<i32>) -> i32 {
+    items[0] = 1;
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "IMMUTABLE_ASSIGNMENT"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_mutation_requires_i32_index() {
+    let src = r#"
+function main(items: Array<i32>) -> i32 {
+    let mut buf = items;
+    let idx = true;
+    buf[idx] = 1;
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "TYPE_MISMATCH" && d.expected.as_deref() == Some("i32")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_mutation_value_type_mismatch() {
+    let src = r#"
+function main(items: Array<i32>) -> i32 {
+    let mut buf = items;
+    buf[0] = "nope";
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TYPE_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_mutation_into_non_collection_rejected() {
+    let src = r#"
+function main() -> i32 {
+    let mut n = 42;
+    n[0] = 1;
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "NOT_INDEXABLE"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn assignment_to_non_lvalue_rejected() {
+    let src = r#"
+function main() -> i32 {
+    42 = 1;
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(!diags.is_empty(), "expected a diagnostic, got {:?}", diags);
+}

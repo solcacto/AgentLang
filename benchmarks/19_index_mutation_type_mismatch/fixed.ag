@@ -1,0 +1,5 @@
+function main(items: Array<i32>) -> i32 {
+    let mut buf = items;
+    buf[0] = 1;
+    return buf[0];
+}

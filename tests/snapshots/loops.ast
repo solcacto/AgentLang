@@ -85,7 +85,13 @@ Module {
                     },
                     body: [
                         Assign {
-                            name: "total",
+                            target: Ident(
+                                "total",
+                                Span {
+                                    line: 5,
+                                    col: 9,
+                                },
+                            ),
                             value: Binary {
                                 op: Add,
                                 left: Ident(
@@ -113,7 +119,13 @@ Module {
                             },
                         },
                         Assign {
-                            name: "i",
+                            target: Ident(
+                                "i",
+                                Span {
+                                    line: 6,
+                                    col: 9,
+                                },
+                            ),
                             value: Binary {
                                 op: Add,
                                 left: Ident(

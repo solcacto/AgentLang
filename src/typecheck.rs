@@ -237,6 +237,23 @@ impl<'a> TypeChecker<'a> {
         None
     }
 
+    /// True when the root binding of an lvalue expression is declared `let mut`.
+    ///
+    /// Used to decide whether an assignment to a variable, struct field, or index
+    /// is permitted. Temporaries (e.g. the result of a function call) have no root
+    /// binding and are treated as not-mutatable here.
+    fn lvalue_is_mutable(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(name, _) => self
+                .lookup_binding(name)
+                .map(|binding| binding.mutable)
+                .unwrap_or(false),
+            Expr::Member { object, .. } => self.lvalue_is_mutable(object),
+            Expr::Index { object, .. } => self.lvalue_is_mutable(object),
+            _ => false,
+        }
+    }
+
     fn check_stmt(&mut self, stmt: &Stmt, ret_ty: &Ty, diags: &mut Vec<Diagnostic>) {
         match stmt {
             Stmt::Let {
@@ -268,57 +285,261 @@ impl<'a> TypeChecker<'a> {
                     },
                 );
             }
-            Stmt::Assign { name, value, span } => {
+            Stmt::Assign {
+                target,
+                value,
+                span,
+            } => {
                 let actual = self.check_expr(value, diags);
-                match self.lookup_binding(name) {
-                    None => {
-                        diags.push(
-                            Diagnostic::error(
-                                "UNDEFINED_SYMBOL",
-                                self.file,
-                                *span,
-                                &format!("Cannot assign to undefined variable `{}`", name),
-                            )
-                            .with_symbol(name)
-                            .with_repair(
-                                "declare_symbol",
-                                Some(name),
-                                None,
-                            ),
-                        );
-                    }
-                    Some(binding) if !binding.mutable => {
-                        diags.push(
-                            Diagnostic::error(
-                                "IMMUTABLE_ASSIGNMENT",
-                                self.file,
-                                *span,
-                                &format!("Cannot assign to `{}`; declare it with `let mut`", name),
-                            )
-                            .with_symbol(name)
-                            .with_repair("add_mut", Some(name), None),
-                        );
-                    }
-                    Some(binding) => {
-                        if !compatible(&binding.ty, &actual) {
+                match &**target {
+                    Expr::Ident(name, _) => match self.lookup_binding(name) {
+                        None => {
+                            diags.push(
+                                Diagnostic::error(
+                                    "UNDEFINED_SYMBOL",
+                                    self.file,
+                                    *span,
+                                    &format!("Cannot assign to undefined variable `{}`", name),
+                                )
+                                .with_symbol(name)
+                                .with_repair(
+                                    "declare_symbol",
+                                    Some(name),
+                                    None,
+                                ),
+                            );
+                        }
+                        Some(binding) if !binding.mutable => {
+                            diags.push(
+                                Diagnostic::error(
+                                    "IMMUTABLE_ASSIGNMENT",
+                                    self.file,
+                                    *span,
+                                    &format!(
+                                        "Cannot assign to `{}`; declare it with `let mut`",
+                                        name
+                                    ),
+                                )
+                                .with_symbol(name)
+                                .with_repair(
+                                    "add_mut",
+                                    Some(name),
+                                    None,
+                                ),
+                            );
+                        }
+                        Some(binding) => {
+                            if !compatible(&binding.ty, &actual) {
+                                diags.push(
+                                    Diagnostic::error(
+                                        "TYPE_MISMATCH",
+                                        self.file,
+                                        *span,
+                                        &format!(
+                                            "Cannot assign `{}` to `{}`: expected `{}`, found `{}`",
+                                            actual, name, binding.ty, actual
+                                        ),
+                                    )
+                                    .with_types(&binding.ty.to_string(), &actual.to_string())
+                                    .with_repair(
+                                        "replace_expression",
+                                        None,
+                                        Some(&binding.ty.to_string()),
+                                    ),
+                                );
+                            }
+                        }
+                    },
+                    Expr::Member {
+                        object,
+                        ref field,
+                        span,
+                    } => {
+                        let span = *span;
+                        let object_ty = self.check_expr(object, diags);
+                        let field_ty = match &object_ty {
+                            Ty::Named(struct_name) => match self.structs.get(struct_name) {
+                                Some(fields) => match fields.get(field) {
+                                    Some(ft) => ft.clone(),
+                                    None => {
+                                        diags.push(
+                                            Diagnostic::error(
+                                                "UNKNOWN_FIELD",
+                                                self.file,
+                                                span,
+                                                &format!(
+                                                    "Struct `{}` has no field `{}`",
+                                                    struct_name, field
+                                                ),
+                                            )
+                                            .with_symbol(field)
+                                            .with_repair("rename_symbol", Some(field), None),
+                                        );
+                                        Ty::Unknown
+                                    }
+                                },
+                                None => {
+                                    diags.push(
+                                        Diagnostic::error(
+                                            "NOT_A_STRUCT",
+                                            self.file,
+                                            span,
+                                            &format!(
+                                                "Cannot assign to field `{}` on non-struct type `{}`",
+                                                field, object_ty
+                                            ),
+                                        )
+                                        .with_types("<struct>", &object_ty.to_string()),
+                                    );
+                                    Ty::Unknown
+                                }
+                            },
+                            Ty::Unknown => Ty::Unknown,
+                            other => {
+                                diags.push(
+                                    Diagnostic::error(
+                                        "NOT_A_STRUCT",
+                                        self.file,
+                                        span,
+                                        &format!(
+                                            "Cannot assign to field `{}` on non-struct type `{}`",
+                                            field, other
+                                        ),
+                                    )
+                                    .with_types("<struct>", &other.to_string()),
+                                );
+                                Ty::Unknown
+                            }
+                        };
+                        if field_ty != Ty::Unknown && !self.lvalue_is_mutable(object) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "IMMUTABLE_ASSIGNMENT",
+                                    self.file,
+                                    span,
+                                    &format!(
+                                        "Cannot assign to field `.{}`; the root binding must be declared with `let mut`",
+                                        field
+                                    ),
+                                )
+                                .with_repair("add_mut", None, None),
+                            );
+                        }
+                        if field_ty != Ty::Unknown && !compatible(&field_ty, &actual) {
                             diags.push(
                                 Diagnostic::error(
                                     "TYPE_MISMATCH",
                                     self.file,
-                                    *span,
+                                    span,
                                     &format!(
-                                        "Cannot assign `{}` to `{}`: expected `{}`, found `{}`",
-                                        actual, name, binding.ty, actual
+                                        "Cannot assign `{}` to field `.{}`: expected `{}`, found `{}`",
+                                        actual, field, field_ty, actual
                                     ),
                                 )
-                                .with_types(&binding.ty.to_string(), &actual.to_string())
+                                .with_types(&field_ty.to_string(), &actual.to_string())
                                 .with_repair(
                                     "replace_expression",
                                     None,
-                                    Some(&binding.ty.to_string()),
+                                    Some(&field_ty.to_string()),
                                 ),
                             );
                         }
+                    }
+                    Expr::Index {
+                        object,
+                        index,
+                        span: ispan,
+                    } => {
+                        let object_ty = self.check_expr(object, diags);
+                        let index_ty = self.check_expr(index, diags);
+                        let element_ty = match object_ty {
+                            Ty::Array(t) => {
+                                if !compatible(&Ty::I32, &index_ty) {
+                                    diags.push(
+                                        Diagnostic::error(
+                                            "TYPE_MISMATCH",
+                                            self.file,
+                                            *ispan,
+                                            &format!(
+                                                "Indexing an `Array<T>` requires `i32`, found `{}`",
+                                                index_ty
+                                            ),
+                                        )
+                                        .with_types("i32", &index_ty.to_string()),
+                                    );
+                                }
+                                *t.clone()
+                            }
+                            Ty::Map(k, v) => {
+                                if !compatible(&*k, &index_ty) {
+                                    diags.push(
+                                        Diagnostic::error(
+                                            "TYPE_MISMATCH",
+                                            self.file,
+                                            *ispan,
+                                            &format!(
+                                                "Indexing a `Map<K, V>` requires `{}`, found `{}`",
+                                                k, index_ty
+                                            ),
+                                        )
+                                        .with_types(&k.to_string(), &index_ty.to_string()),
+                                    );
+                                }
+                                *v.clone()
+                            }
+                            Ty::Unknown => Ty::Unknown,
+                            other => {
+                                diags.push(
+                                    Diagnostic::error(
+                                        "NOT_INDEXABLE",
+                                        self.file,
+                                        *ispan,
+                                        &format!("Cannot assign to index of type `{}`", other),
+                                    )
+                                    .with_types("Array<T> or Map<K, V>", &other.to_string()),
+                                );
+                                Ty::Unknown
+                            }
+                        };
+                        if element_ty != Ty::Unknown && !self.lvalue_is_mutable(object) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "IMMUTABLE_ASSIGNMENT",
+                                    self.file,
+                                    *ispan,
+                                    "Cannot assign to index; the root binding must be declared with `let mut`",
+                                )
+                                .with_repair("add_mut", None, None),
+                            );
+                        }
+                        if element_ty != Ty::Unknown && !compatible(&element_ty, &actual) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "TYPE_MISMATCH",
+                                    self.file,
+                                    *ispan,
+                                    &format!(
+                                        "Cannot assign `{}` to index: expected `{}`, found `{}`",
+                                        actual, element_ty, actual
+                                    ),
+                                )
+                                .with_types(&element_ty.to_string(), &actual.to_string())
+                                .with_repair(
+                                    "replace_expression",
+                                    None,
+                                    Some(&element_ty.to_string()),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        let target_ty = self.check_expr(target, diags);
+                        diags.push(Diagnostic::error(
+                            "TYPE_MISMATCH",
+                            self.file,
+                            *span,
+                            &format!("Cannot assign to expression of type `{}`", target_ty),
+                        ));
                     }
                 }
             }

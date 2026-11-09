@@ -35,11 +35,6 @@ impl Parser {
         &self.tokens[self.pos].kind
     }
 
-    fn peek_at(&self, offset: usize) -> &TokenKind {
-        let index = (self.pos + offset).min(self.tokens.len() - 1);
-        &self.tokens[index].kind
-    }
-
     fn peek_span(&self) -> Span {
         self.tokens[self.pos].span
     }
@@ -398,10 +393,6 @@ impl Parser {
                     span,
                 })
             }
-        } else if matches!(self.peek(), TokenKind::Identifier(_))
-            && self.peek_at(1) == &TokenKind::Assign
-        {
-            self.parse_assignment()
         } else if self.at(&TokenKind::If) {
             self.parse_if()
         } else if self.at(&TokenKind::While) {
@@ -409,22 +400,25 @@ impl Parser {
         } else if self.at(&TokenKind::For) {
             self.parse_for()
         } else {
-            let expr = self.parse_expr()?;
-            self.expect(&TokenKind::Semicolon, "`;`")?;
-            Ok(Stmt::Expr(expr))
+            // Parse an expression; if it is followed by `=`, it is an
+            // assignment target (a variable, a struct field, or an index).
+            // `=` is not an expression operator, so `parse_expr` stops before it.
+            let target = self.parse_expr()?;
+            if self.at(&TokenKind::Assign) {
+                let span = target.span();
+                self.advance();
+                let value = self.parse_expr()?;
+                self.expect(&TokenKind::Semicolon, "`;`")?;
+                Ok(Stmt::Assign {
+                    target: Box::new(target),
+                    value,
+                    span,
+                })
+            } else {
+                self.expect(&TokenKind::Semicolon, "`;`")?;
+                Ok(Stmt::Expr(target))
+            }
         }
-    }
-
-    fn parse_assignment(&mut self) -> Result<Stmt, Diagnostic> {
-        let span = self.peek_span();
-        let name = match self.advance() {
-            TokenKind::Identifier(n) => n,
-            _ => return Err(self.err_here("Expected variable name")),
-        };
-        self.expect(&TokenKind::Assign, "`=`")?;
-        let value = self.parse_expr()?;
-        self.expect(&TokenKind::Semicolon, "`;`")?;
-        Ok(Stmt::Assign { name, value, span })
     }
 
     fn parse_if(&mut self) -> Result<Stmt, Diagnostic> {

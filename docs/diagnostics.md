@@ -90,7 +90,7 @@ format or parsing prose.
 | `DUPLICATE_FIELD` | Field declared or initialized twice |
 | `NOT_A_STRUCT` | Field access on a non-struct type |
 | `UNKNOWN_VARIANT` | Enum/variant does not exist |
-| `IMMUTABLE_ASSIGNMENT` | Assignment to a binding not declared with `let mut` |
+| `IMMUTABLE_ASSIGNMENT` | Assignment to a binding not declared with `let mut` (covers variables, struct fields, and index targets) |
 | `NOT_INDEXABLE` | Indexing a type that is not an `Array` or `Map` |
 | `NOT_ITERABLE` | `for` loop over a type that is not an `Array` or `Map` |
 | `UNKNOWN_METHOD` | Method does not exist on the receiver type |

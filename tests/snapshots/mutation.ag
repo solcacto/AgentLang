@@ -1,0 +1,16 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+function move_x(p: Point, dx: i32) -> Point {
+    let mut q = p;
+    q.x = q.x + dx;
+    return q;
+}
+
+function set_first(items: Array<i32>, v: i32) -> i32 {
+    let mut buf = items;
+    buf[0] = v;
+    return buf[0];
+}
