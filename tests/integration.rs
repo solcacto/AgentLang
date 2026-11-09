@@ -1059,3 +1059,169 @@ function spin() -> i32 {
         diags
     );
 }
+
+#[test]
+fn for_over_array_binds_element_type() {
+    let src = r#"
+function sum(items: Array<i32>) -> i32 {
+    let mut total = 0;
+    for x in items {
+        total = total + x;
+    }
+    return total;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn for_over_map_binds_key_type() {
+    let src = r#"
+function count_keys(scores: Map<String, i32>) -> i32 {
+    let mut n = 0;
+    for name in scores {
+        n = n + 1;
+    }
+    return n;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn for_over_non_iterable_reports_not_iterable() {
+    let src = r#"
+function main() -> i32 {
+    for x in 42 {
+        return 1;
+    }
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "NOT_ITERABLE"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_array_requires_i32() {
+    let src = r#"
+function main(items: Array<i32>) -> i32 {
+    let idx = true;
+    return items[idx];
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "TYPE_MISMATCH" && d.expected.as_deref() == Some("i32")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_map_requires_key_type() {
+    let src = r#"
+function main(scores: Map<String, i32>) -> i32 {
+    return scores[0];
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "TYPE_MISMATCH" && d.expected.as_deref() == Some("String")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_non_collection_reports_not_indexable() {
+    let src = r#"
+function main() -> i32 {
+    return 42[0];
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "NOT_INDEXABLE"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn index_expression_returns_element_type() {
+    let src = r#"
+function first(items: Array<i32>) -> i32 {
+    return items[0];
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn for_loop_variable_is_immutable() {
+    let src = r#"
+function main(items: Array<i32>) -> i32 {
+    for x in items {
+        x = 1;
+    }
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "IMMUTABLE_ASSIGNMENT" && d.symbol.as_deref() == Some("x")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn for_does_not_guarantee_return() {
+    let src = r#"
+function spin(items: Array<i32>) -> i32 {
+    for x in items {
+        return 1;
+    }
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "MISSING_RETURN"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn for_condition_scope_does_not_leak() {
+    let src = r#"
+function main(items: Array<i32>) -> i32 {
+    for x in items {
+        let inner = 1;
+    }
+    return inner;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "UNDEFINED_SYMBOL" && d.symbol.as_deref() == Some("inner")),
+        "got {:?}",
+        diags
+    );
+}

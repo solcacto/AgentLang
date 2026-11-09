@@ -85,6 +85,16 @@ pub enum Stmt {
         body: Vec<Stmt>,
         span: Span,
     },
+    /// `for name in iterable { ... }`
+    ///
+    /// The loop variable binds the element type of an `Array<T>` or the key type
+    /// of a `Map<K, V>`.
+    For {
+        name: String,
+        iterable: Expr,
+        body: Vec<Stmt>,
+        span: Span,
+    },
     Expr(Expr),
 }
 
@@ -200,6 +210,12 @@ pub enum Expr {
         arms: Vec<MatchArm>,
         span: Span,
     },
+    /// An index expression, e.g. `items[0]` or `scores[name]`.
+    Index {
+        object: Box<Expr>,
+        index: Box<Expr>,
+        span: Span,
+    },
     Group(Box<Expr>),
 }
 
@@ -254,7 +270,8 @@ impl Expr {
             | Expr::MethodCall { span, .. }
             | Expr::Try { span, .. }
             | Expr::Lambda { span, .. }
-            | Expr::Match { span, .. } => *span,
+            | Expr::Match { span, .. }
+            | Expr::Index { span, .. } => *span,
             Expr::Group(e) => e.span(),
         }
     }

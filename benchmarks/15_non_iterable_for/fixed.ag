@@ -1,0 +1,6 @@
+function main(items: Array<i32>) -> i32 {
+    for x in items {
+        return x;
+    }
+    return 0;
+}

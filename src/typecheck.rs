@@ -399,6 +399,41 @@ impl<'a> TypeChecker<'a> {
                 }
                 self.check_block(body, ret_ty, diags);
             }
+            Stmt::For {
+                name,
+                iterable,
+                body,
+                span: _,
+            } => {
+                let iterable_ty = self.check_expr(iterable, diags);
+                let element_ty = match &iterable_ty {
+                    Ty::Array(t) => *t.clone(),
+                    Ty::Map(k, _) => *k.clone(),
+                    Ty::Unknown => Ty::Unknown,
+                    other => {
+                        diags.push(
+                            Diagnostic::error(
+                                "NOT_ITERABLE",
+                                self.file,
+                                iterable.span(),
+                                &format!("`for` loop cannot iterate over type `{}`", other),
+                            )
+                            .with_types("Array<T> or Map<K, V>", &other.to_string()),
+                        );
+                        Ty::Unknown
+                    }
+                };
+                self.scopes.push(HashMap::new());
+                self.scopes.last_mut().unwrap().insert(
+                    name.clone(),
+                    Binding {
+                        ty: element_ty,
+                        mutable: false,
+                    },
+                );
+                self.check_block(body, ret_ty, diags);
+                self.scopes.pop();
+            }
             Stmt::Expr(expr) => {
                 self.check_expr(expr, diags);
             }
@@ -570,6 +605,63 @@ impl<'a> TypeChecker<'a> {
                     "Closures are only supported as arguments to `.map` in Phase 1",
                 ));
                 Ty::Unknown
+            }
+            Expr::Index {
+                object,
+                index,
+                span,
+            } => {
+                let object_ty = self.check_expr(object, diags);
+                let index_ty = self.check_expr(index, diags);
+                match object_ty {
+                    Ty::Array(t) => {
+                        if !compatible(&Ty::I32, &index_ty) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "TYPE_MISMATCH",
+                                    self.file,
+                                    *span,
+                                    &format!(
+                                        "Indexing an `Array<T>` requires `i32`, found `{}`",
+                                        index_ty
+                                    ),
+                                )
+                                .with_types("i32", &index_ty.to_string()),
+                            );
+                        }
+                        *t.clone()
+                    }
+                    Ty::Map(k, v) => {
+                        if !compatible(&*k, &index_ty) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "TYPE_MISMATCH",
+                                    self.file,
+                                    *span,
+                                    &format!(
+                                        "Indexing a `Map<K, V>` requires `{}`, found `{}`",
+                                        k, index_ty
+                                    ),
+                                )
+                                .with_types(&k.to_string(), &index_ty.to_string()),
+                            );
+                        }
+                        *v.clone()
+                    }
+                    Ty::Unknown => Ty::Unknown,
+                    other => {
+                        diags.push(
+                            Diagnostic::error(
+                                "NOT_INDEXABLE",
+                                self.file,
+                                *span,
+                                &format!("Cannot index into type `{}`", other),
+                            )
+                            .with_types("Array<T> or Map<K, V>", &other.to_string()),
+                        );
+                        Ty::Unknown
+                    }
+                }
             }
             Expr::Match {
                 scrutinee,

@@ -1,0 +1,11 @@
+function sum_array(items: Array<i32>) -> i32 {
+    let mut total = 0;
+    for x in items {
+        total = total + x;
+    }
+    return total;
+}
+
+function get_first(items: Array<i32>) -> i32 {
+    return items[0];
+}

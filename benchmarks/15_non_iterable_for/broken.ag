@@ -1,0 +1,6 @@
+function main() -> i32 {
+    for x in 42 {
+        return 1;
+    }
+    return 0;
+}

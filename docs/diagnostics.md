@@ -91,6 +91,8 @@ format or parsing prose.
 | `NOT_A_STRUCT` | Field access on a non-struct type |
 | `UNKNOWN_VARIANT` | Enum/variant does not exist |
 | `IMMUTABLE_ASSIGNMENT` | Assignment to a binding not declared with `let mut` |
+| `NOT_INDEXABLE` | Indexing a type that is not an `Array` or `Map` |
+| `NOT_ITERABLE` | `for` loop over a type that is not an `Array` or `Map` |
 | `UNKNOWN_METHOD` | Method does not exist on the receiver type |
 | `INVALID_TRY` | `?` used outside a matching `Option`/`Result` context |
 | `TRY_TYPE_MISMATCH` | `?` propagates a different error type than the function returns |

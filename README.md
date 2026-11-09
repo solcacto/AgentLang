@@ -68,6 +68,9 @@ cargo run -- check examples/control_flow.ag
 # Mutable bindings (let mut), assignment, and while loops
 cargo run -- check examples/loops.ag
 
+# for loops and array/map indexing
+cargo run -- check examples/collections.ag
+
 # Machine mode: always emit a JSON array (empty `[]` on success)
 cargo run -- check --format json examples/hello.ag
 cargo run -- check --json examples/bad.ag
@@ -92,8 +95,10 @@ methods `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`, `is_err`,
 `match` over enums/`Option`/`Result` (with payload binding, wildcards, and
 exhaustiveness checking), `if` / `else if` / `else` statements, `let mut`
 bindings with assignment, and `while` loops — all with block scoping and
-return-path checking. `for` loops, collection indexing, and mutation through
-struct fields are upcoming (see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
+return-path checking. `for name in iterable { ... }` loops iterate over
+`Array<T>` (binding `T`) and `Map<K, V>` (binding `K`); `expr[index]` indexes
+arrays with `i32` and maps with `K`. Field/index mutation is upcoming
+(see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
 
 Example diagnostic output:
 

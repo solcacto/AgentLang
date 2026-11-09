@@ -166,7 +166,11 @@ impl Parser {
                     break;
                 }
                 TokenKind::RBrace if depth == 0 => break,
-                TokenKind::Let | TokenKind::Return | TokenKind::If | TokenKind::While
+                TokenKind::Let
+                | TokenKind::Return
+                | TokenKind::If
+                | TokenKind::While
+                | TokenKind::For
                     if depth == 0 =>
                 {
                     break
@@ -402,6 +406,8 @@ impl Parser {
             self.parse_if()
         } else if self.at(&TokenKind::While) {
             self.parse_while()
+        } else if self.at(&TokenKind::For) {
+            self.parse_for()
         } else {
             let expr = self.parse_expr()?;
             self.expect(&TokenKind::Semicolon, "`;`")?;
@@ -463,6 +469,31 @@ impl Parser {
 
         let body = self.parse_block()?;
         Ok(Stmt::While { cond, body, span })
+    }
+
+    fn parse_for(&mut self) -> Result<Stmt, Diagnostic> {
+        let span = self.expect(&TokenKind::For, "`for`")?;
+        let name = match self.advance() {
+            TokenKind::Identifier(n) => n,
+            _ => return Err(self.err_here("Expected loop variable name")),
+        };
+        self.expect(&TokenKind::In, "`in`")?;
+
+        // Suppress struct literals so `for x in items { ... }` does not read the
+        // loop body as `items { ... }`.
+        let saved = self.suppress_struct_lit;
+        self.suppress_struct_lit = true;
+        let iterable = self.parse_expr();
+        self.suppress_struct_lit = saved;
+        let iterable = iterable?;
+
+        let body = self.parse_block()?;
+        Ok(Stmt::For {
+            name,
+            iterable,
+            body,
+            span,
+        })
     }
 
     /// Parse a `{ ... }` block of statements, recovering at statement
@@ -710,6 +741,20 @@ impl Parser {
                 self.advance();
                 expr = Expr::Try {
                     expr: Box::new(expr),
+                    span,
+                };
+            } else if self.at(&TokenKind::LBracket) {
+                let span = self.peek_span();
+                self.advance();
+                let saved = self.suppress_struct_lit;
+                self.suppress_struct_lit = false;
+                let index = self.parse_expr();
+                self.suppress_struct_lit = saved;
+                let index = index?;
+                self.expect(&TokenKind::RBracket, "`]`")?;
+                expr = Expr::Index {
+                    object: Box::new(expr),
+                    index: Box::new(index),
                     span,
                 };
             } else {

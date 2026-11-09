@@ -1,0 +1,4 @@
+function main(items: Array<i32>) -> i32 {
+    let idx = 0;
+    return items[idx];
+}
