@@ -209,9 +209,9 @@ fn run(args: &[String]) -> ExitCode {
             }
 
             let exe_path = if let Some(stem) = file.strip_suffix(".ag") {
-                format!("{}.exe", stem)
+                format!("./{}.exe", stem)
             } else {
-                format!("{}.exe", file)
+                format!("./{}.exe", file)
             };
 
             let compile_status = Command::new("rustc")

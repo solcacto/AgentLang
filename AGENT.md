@@ -83,6 +83,8 @@ agent run program.ag
 
 This is equivalent to `agent build` followed by `rustc` and executing the resulting binary. The exit code of `agent run` is the exit code of your program.
 
+> **Windows note:** On Windows, `agent run program.ag` works with a relative path without needing `.` in your PATH. The compiler prefixes the executable path with `./` when invoking it. If you prefer, you can also use an absolute path: `agent run C:\path\to\program.ag`.
+
 ### Type mapping (AgentLang → Rust)
 
 | AgentLang | Rust |
