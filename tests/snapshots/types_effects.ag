@@ -1,0 +1,15 @@
+function total(values: Array<i32>) -> i32 {
+    return 0;
+}
+
+function lookup(table: Map<String, i32>) -> i32 {
+    return 0;
+}
+
+function nested(value: Result<Option<i32>, String>) -> Result<Option<i32>, String> {
+    return value;
+}
+
+function read(path: String) -> String effects(fs.read) {
+    return path;
+}

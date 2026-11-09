@@ -1,0 +1,463 @@
+Module {
+    structs: [],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "parse_value",
+            params: [
+                Param {
+                    name: "input",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 1,
+                            col: 29,
+                        },
+                    },
+                    span: Span {
+                        line: 1,
+                        col: 22,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "Result",
+                args: [
+                    TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 1,
+                            col: 44,
+                        },
+                    },
+                    TypeExpr {
+                        name: "String",
+                        args: [],
+                        span: Span {
+                            line: 1,
+                            col: 49,
+                        },
+                    },
+                ],
+                span: Span {
+                    line: 1,
+                    col: 37,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Call {
+                            callee: "Ok",
+                            args: [
+                                Ident(
+                                    "input",
+                                    Span {
+                                        line: 2,
+                                        col: 15,
+                                    },
+                                ),
+                            ],
+                            span: Span {
+                                line: 2,
+                                col: 14,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "compute",
+            params: [],
+            return_type: TypeExpr {
+                name: "Result",
+                args: [
+                    TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 5,
+                            col: 30,
+                        },
+                    },
+                    TypeExpr {
+                        name: "String",
+                        args: [],
+                        span: Span {
+                            line: 5,
+                            col: 35,
+                        },
+                    },
+                ],
+                span: Span {
+                    line: 5,
+                    col: 23,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "value",
+                    value: Try {
+                        expr: Call {
+                            callee: "parse_value",
+                            args: [
+                                Integer(
+                                    10,
+                                    Span {
+                                        line: 6,
+                                        col: 29,
+                                    },
+                                ),
+                            ],
+                            span: Span {
+                                line: 6,
+                                col: 28,
+                            },
+                        },
+                        span: Span {
+                            line: 6,
+                            col: 32,
+                        },
+                    },
+                    span: Span {
+                        line: 6,
+                        col: 5,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Call {
+                            callee: "Ok",
+                            args: [
+                                Binary {
+                                    op: Add,
+                                    left: Ident(
+                                        "value",
+                                        Span {
+                                            line: 7,
+                                            col: 15,
+                                        },
+                                    ),
+                                    right: Integer(
+                                        1,
+                                        Span {
+                                            line: 7,
+                                            col: 23,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 7,
+                                        col: 21,
+                                    },
+                                },
+                            ],
+                            span: Span {
+                                line: 7,
+                                col: 14,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 7,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 5,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "find",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "Option",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 10,
+                                    col: 29,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 10,
+                            col: 22,
+                        },
+                    },
+                    span: Span {
+                        line: 10,
+                        col: 15,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "Option",
+                args: [
+                    TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 10,
+                            col: 45,
+                        },
+                    },
+                ],
+                span: Span {
+                    line: 10,
+                    col: 38,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Ident(
+                            "value",
+                            Span {
+                                line: 11,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 11,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 10,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "maybe_double",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "Option",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 14,
+                                    col: 37,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 14,
+                            col: 30,
+                        },
+                    },
+                    span: Span {
+                        line: 14,
+                        col: 23,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "Option",
+                args: [
+                    TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 14,
+                            col: 53,
+                        },
+                    },
+                ],
+                span: Span {
+                    line: 14,
+                    col: 46,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        MethodCall {
+                            receiver: Ident(
+                                "value",
+                                Span {
+                                    line: 15,
+                                    col: 12,
+                                },
+                            ),
+                            method: "map",
+                            args: [
+                                Lambda {
+                                    param: "inner",
+                                    body: Binary {
+                                        op: Mul,
+                                        left: Ident(
+                                            "inner",
+                                            Span {
+                                                line: 15,
+                                                col: 30,
+                                            },
+                                        ),
+                                        right: Integer(
+                                            2,
+                                            Span {
+                                                line: 15,
+                                                col: 38,
+                                            },
+                                        ),
+                                        span: Span {
+                                            line: 15,
+                                            col: 36,
+                                        },
+                                    },
+                                    span: Span {
+                                        line: 15,
+                                        col: 22,
+                                    },
+                                },
+                            ],
+                            span: Span {
+                                line: 15,
+                                col: 21,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 15,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 14,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "fallback",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "Result",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 18,
+                                    col: 33,
+                                },
+                            },
+                            TypeExpr {
+                                name: "String",
+                                args: [],
+                                span: Span {
+                                    line: 18,
+                                    col: 38,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 18,
+                            col: 26,
+                        },
+                    },
+                    span: Span {
+                        line: 18,
+                        col: 19,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 18,
+                    col: 50,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "present",
+                    value: MethodCall {
+                        receiver: Ident(
+                            "value",
+                            Span {
+                                line: 19,
+                                col: 19,
+                            },
+                        ),
+                        method: "is_ok",
+                        args: [],
+                        span: Span {
+                            line: 19,
+                            col: 30,
+                        },
+                    },
+                    span: Span {
+                        line: 19,
+                        col: 5,
+                    },
+                },
+                Return {
+                    value: Some(
+                        MethodCall {
+                            receiver: Ident(
+                                "value",
+                                Span {
+                                    line: 20,
+                                    col: 12,
+                                },
+                            ),
+                            method: "unwrap_or",
+                            args: [
+                                Integer(
+                                    0,
+                                    Span {
+                                        line: 20,
+                                        col: 28,
+                                    },
+                                ),
+                            ],
+                            span: Span {
+                                line: 20,
+                                col: 27,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 20,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 18,
+                col: 1,
+            },
+        },
+    ],
+}

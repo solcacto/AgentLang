@@ -1,0 +1,27 @@
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
+function label(color: Color) -> i32 {
+    return match color {
+        Color::Red => 1,
+        Color::Green => 2,
+        _ => 0,
+    };
+}
+
+function unwrap(value: Option<i32>) -> i32 {
+    return match value {
+        Some(inner) => inner,
+        None => 0,
+    };
+}
+
+function classify(value: Result<i32, String>) -> i32 {
+    return match value {
+        Ok(inner) => inner,
+        Err(message) => 0,
+    };
+}

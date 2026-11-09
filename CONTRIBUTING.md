@@ -32,7 +32,27 @@ cargo run -- check examples/structs.ag # OK
 | `src/types.rs` | Semantic type representation |
 | `src/typecheck.rs` | Static type checker |
 | `src/diagnostic.rs` | Structured JSON diagnostics |
+| `src/bench.rs` | Self-repair benchmark harness |
 | `docs/diagnostics.md` | Diagnostic schema contract |
+
+## AST snapshot tests
+
+`tests/snapshots/<name>.ag` inputs are parsed and compared against a golden
+`<name>.ast` pretty-printed AST (including source spans). Add an input file to
+cover a new grammar construct.
+
+If a parser change alters the AST intentionally, regenerate the snapshots:
+
+```bash
+# Unix
+AGENT_BLESS=1 cargo test --test ast_snapshots
+
+# PowerShell
+$env:AGENT_BLESS='1'; cargo test --test ast_snapshots; Remove-Item Env:\AGENT_BLESS
+```
+
+Review the resulting `.ast` diff before committing — snapshots are a contract,
+not an automatic output.
 
 ## Guidelines
 
@@ -44,4 +64,4 @@ cargo run -- check examples/structs.ag # OK
 
 ## Roadmap
 
-See [`PHASE1_TODO.md`](../PHASE1_TODO.md) for current priorities.
+See [`PHASE1_TODO.md`](PHASE1_TODO.md) for current priorities.

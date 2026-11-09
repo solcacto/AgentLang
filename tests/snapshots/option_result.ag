@@ -1,0 +1,21 @@
+function parse_value(input: i32) -> Result<i32, String> {
+    return Ok(input);
+}
+
+function compute() -> Result<i32, String> {
+    let value = parse_value(10)?;
+    return Ok(value + 1);
+}
+
+function find(value: Option<i32>) -> Option<i32> {
+    return value;
+}
+
+function maybe_double(value: Option<i32>) -> Option<i32> {
+    return value.map(|inner| inner * 2);
+}
+
+function fallback(value: Result<i32, String>) -> i32 {
+    let present = value.is_ok();
+    return value.unwrap_or(0);
+}

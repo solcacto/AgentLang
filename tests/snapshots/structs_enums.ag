@@ -1,0 +1,25 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+enum Shape {
+    Circle(i32),
+    Empty,
+}
+
+function origin() -> Point {
+    return Point { x: 0, y: 0 };
+}
+
+function x_of(point: Point) -> i32 {
+    return point.x;
+}
+
+function unit() -> Shape {
+    return Shape::Circle(1);
+}
+
+function nothing() -> Shape {
+    return Shape::Empty;
+}

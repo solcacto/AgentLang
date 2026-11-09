@@ -1,0 +1,177 @@
+Module {
+    structs: [],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "add",
+            params: [
+                Param {
+                    name: "a",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 1,
+                            col: 17,
+                        },
+                    },
+                    span: Span {
+                        line: 1,
+                        col: 14,
+                    },
+                },
+                Param {
+                    name: "b",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 1,
+                            col: 25,
+                        },
+                    },
+                    span: Span {
+                        line: 1,
+                        col: 22,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 1,
+                    col: 33,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "sum",
+                    value: Binary {
+                        op: Add,
+                        left: Ident(
+                            "a",
+                            Span {
+                                line: 2,
+                                col: 15,
+                            },
+                        ),
+                        right: Binary {
+                            op: Mul,
+                            left: Ident(
+                                "b",
+                                Span {
+                                    line: 2,
+                                    col: 19,
+                                },
+                            ),
+                            right: Integer(
+                                2,
+                                Span {
+                                    line: 2,
+                                    col: 23,
+                                },
+                            ),
+                            span: Span {
+                                line: 2,
+                                col: 21,
+                            },
+                        },
+                        span: Span {
+                            line: 2,
+                            col: 17,
+                        },
+                    },
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Ident(
+                            "sum",
+                            Span {
+                                line: 3,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 3,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "main",
+            params: [],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 6,
+                    col: 20,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "value",
+                    value: Call {
+                        callee: "add",
+                        args: [
+                            Integer(
+                                1,
+                                Span {
+                                    line: 7,
+                                    col: 21,
+                                },
+                            ),
+                            Integer(
+                                2,
+                                Span {
+                                    line: 7,
+                                    col: 24,
+                                },
+                            ),
+                        ],
+                        span: Span {
+                            line: 7,
+                            col: 20,
+                        },
+                    },
+                    span: Span {
+                        line: 7,
+                        col: 5,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Ident(
+                            "value",
+                            Span {
+                                line: 8,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 8,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 6,
+                col: 1,
+            },
+        },
+    ],
+}

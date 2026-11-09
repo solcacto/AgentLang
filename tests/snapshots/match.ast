@@ -1,0 +1,407 @@
+Module {
+    structs: [],
+    enums: [
+        EnumDecl {
+            name: "Color",
+            variants: [
+                EnumVariant {
+                    name: "Red",
+                    payload: None,
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+                EnumVariant {
+                    name: "Green",
+                    payload: None,
+                    span: Span {
+                        line: 3,
+                        col: 5,
+                    },
+                },
+                EnumVariant {
+                    name: "Blue",
+                    payload: None,
+                    span: Span {
+                        line: 4,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+    ],
+    functions: [
+        FunctionDecl {
+            name: "label",
+            params: [
+                Param {
+                    name: "color",
+                    ty: TypeExpr {
+                        name: "Color",
+                        args: [],
+                        span: Span {
+                            line: 7,
+                            col: 23,
+                        },
+                    },
+                    span: Span {
+                        line: 7,
+                        col: 16,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 7,
+                    col: 33,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Match {
+                            scrutinee: Ident(
+                                "color",
+                                Span {
+                                    line: 8,
+                                    col: 18,
+                                },
+                            ),
+                            arms: [
+                                MatchArm {
+                                    pattern: Variant {
+                                        enum_name: Some(
+                                            "Color",
+                                        ),
+                                        variant: "Red",
+                                        has_parens: false,
+                                        binding: None,
+                                        span: Span {
+                                            line: 9,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Integer(
+                                        1,
+                                        Span {
+                                            line: 9,
+                                            col: 23,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 9,
+                                        col: 9,
+                                    },
+                                },
+                                MatchArm {
+                                    pattern: Variant {
+                                        enum_name: Some(
+                                            "Color",
+                                        ),
+                                        variant: "Green",
+                                        has_parens: false,
+                                        binding: None,
+                                        span: Span {
+                                            line: 10,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Integer(
+                                        2,
+                                        Span {
+                                            line: 10,
+                                            col: 25,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 10,
+                                        col: 9,
+                                    },
+                                },
+                                MatchArm {
+                                    pattern: Wildcard {
+                                        span: Span {
+                                            line: 11,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Integer(
+                                        0,
+                                        Span {
+                                            line: 11,
+                                            col: 14,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 11,
+                                        col: 9,
+                                    },
+                                },
+                            ],
+                            span: Span {
+                                line: 8,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 8,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 7,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "unwrap",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "Option",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 15,
+                                    col: 31,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 15,
+                            col: 24,
+                        },
+                    },
+                    span: Span {
+                        line: 15,
+                        col: 17,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 15,
+                    col: 40,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Match {
+                            scrutinee: Ident(
+                                "value",
+                                Span {
+                                    line: 16,
+                                    col: 18,
+                                },
+                            ),
+                            arms: [
+                                MatchArm {
+                                    pattern: Variant {
+                                        enum_name: None,
+                                        variant: "Some",
+                                        has_parens: true,
+                                        binding: Some(
+                                            "inner",
+                                        ),
+                                        span: Span {
+                                            line: 17,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Ident(
+                                        "inner",
+                                        Span {
+                                            line: 17,
+                                            col: 24,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 17,
+                                        col: 9,
+                                    },
+                                },
+                                MatchArm {
+                                    pattern: Variant {
+                                        enum_name: None,
+                                        variant: "None",
+                                        has_parens: false,
+                                        binding: None,
+                                        span: Span {
+                                            line: 18,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Integer(
+                                        0,
+                                        Span {
+                                            line: 18,
+                                            col: 17,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 18,
+                                        col: 9,
+                                    },
+                                },
+                            ],
+                            span: Span {
+                                line: 16,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 16,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 15,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "classify",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "Result",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 22,
+                                    col: 33,
+                                },
+                            },
+                            TypeExpr {
+                                name: "String",
+                                args: [],
+                                span: Span {
+                                    line: 22,
+                                    col: 38,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 22,
+                            col: 26,
+                        },
+                    },
+                    span: Span {
+                        line: 22,
+                        col: 19,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 22,
+                    col: 50,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Match {
+                            scrutinee: Ident(
+                                "value",
+                                Span {
+                                    line: 23,
+                                    col: 18,
+                                },
+                            ),
+                            arms: [
+                                MatchArm {
+                                    pattern: Variant {
+                                        enum_name: None,
+                                        variant: "Ok",
+                                        has_parens: true,
+                                        binding: Some(
+                                            "inner",
+                                        ),
+                                        span: Span {
+                                            line: 24,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Ident(
+                                        "inner",
+                                        Span {
+                                            line: 24,
+                                            col: 22,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 24,
+                                        col: 9,
+                                    },
+                                },
+                                MatchArm {
+                                    pattern: Variant {
+                                        enum_name: None,
+                                        variant: "Err",
+                                        has_parens: true,
+                                        binding: Some(
+                                            "message",
+                                        ),
+                                        span: Span {
+                                            line: 25,
+                                            col: 9,
+                                        },
+                                    },
+                                    body: Integer(
+                                        0,
+                                        Span {
+                                            line: 25,
+                                            col: 25,
+                                        },
+                                    ),
+                                    span: Span {
+                                        line: 25,
+                                        col: 9,
+                                    },
+                                },
+                            ],
+                            span: Span {
+                                line: 23,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 23,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 22,
+                col: 1,
+            },
+        },
+    ],
+}

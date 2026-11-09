@@ -1,0 +1,276 @@
+Module {
+    structs: [
+        StructDecl {
+            name: "Point",
+            fields: [
+                FieldDecl {
+                    name: "x",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 2,
+                            col: 8,
+                        },
+                    },
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+                FieldDecl {
+                    name: "y",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 3,
+                            col: 8,
+                        },
+                    },
+                    span: Span {
+                        line: 3,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+    ],
+    enums: [
+        EnumDecl {
+            name: "Shape",
+            variants: [
+                EnumVariant {
+                    name: "Circle",
+                    payload: Some(
+                        TypeExpr {
+                            name: "i32",
+                            args: [],
+                            span: Span {
+                                line: 7,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 7,
+                        col: 5,
+                    },
+                },
+                EnumVariant {
+                    name: "Empty",
+                    payload: None,
+                    span: Span {
+                        line: 8,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 6,
+                col: 1,
+            },
+        },
+    ],
+    functions: [
+        FunctionDecl {
+            name: "origin",
+            params: [],
+            return_type: TypeExpr {
+                name: "Point",
+                args: [],
+                span: Span {
+                    line: 11,
+                    col: 22,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        StructLit {
+                            name: "Point",
+                            fields: [
+                                (
+                                    "x",
+                                    Integer(
+                                        0,
+                                        Span {
+                                            line: 12,
+                                            col: 23,
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "y",
+                                    Integer(
+                                        0,
+                                        Span {
+                                            line: 12,
+                                            col: 29,
+                                        },
+                                    ),
+                                ),
+                            ],
+                            span: Span {
+                                line: 12,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 12,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 11,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "x_of",
+            params: [
+                Param {
+                    name: "point",
+                    ty: TypeExpr {
+                        name: "Point",
+                        args: [],
+                        span: Span {
+                            line: 15,
+                            col: 22,
+                        },
+                    },
+                    span: Span {
+                        line: 15,
+                        col: 15,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 15,
+                    col: 32,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Member {
+                            object: Ident(
+                                "point",
+                                Span {
+                                    line: 16,
+                                    col: 12,
+                                },
+                            ),
+                            field: "x",
+                            span: Span {
+                                line: 16,
+                                col: 17,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 16,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 15,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "unit",
+            params: [],
+            return_type: TypeExpr {
+                name: "Shape",
+                args: [],
+                span: Span {
+                    line: 19,
+                    col: 20,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Variant {
+                            enum_name: "Shape",
+                            variant: "Circle",
+                            payload: Some(
+                                [
+                                    Integer(
+                                        1,
+                                        Span {
+                                            line: 20,
+                                            col: 26,
+                                        },
+                                    ),
+                                ],
+                            ),
+                            span: Span {
+                                line: 20,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 20,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 19,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "nothing",
+            params: [],
+            return_type: TypeExpr {
+                name: "Shape",
+                args: [],
+                span: Span {
+                    line: 23,
+                    col: 23,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Variant {
+                            enum_name: "Shape",
+                            variant: "Empty",
+                            payload: None,
+                            span: Span {
+                                line: 24,
+                                col: 12,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 24,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 23,
+                col: 1,
+            },
+        },
+    ],
+}

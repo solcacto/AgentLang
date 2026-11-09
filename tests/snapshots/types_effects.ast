@@ -1,0 +1,286 @@
+Module {
+    structs: [],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "total",
+            params: [
+                Param {
+                    name: "values",
+                    ty: TypeExpr {
+                        name: "Array",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 1,
+                                    col: 30,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 1,
+                            col: 24,
+                        },
+                    },
+                    span: Span {
+                        line: 1,
+                        col: 16,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 1,
+                    col: 39,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Integer(
+                            0,
+                            Span {
+                                line: 2,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "lookup",
+            params: [
+                Param {
+                    name: "table",
+                    ty: TypeExpr {
+                        name: "Map",
+                        args: [
+                            TypeExpr {
+                                name: "String",
+                                args: [],
+                                span: Span {
+                                    line: 5,
+                                    col: 28,
+                                },
+                            },
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 5,
+                                    col: 36,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 5,
+                            col: 24,
+                        },
+                    },
+                    span: Span {
+                        line: 5,
+                        col: 17,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 5,
+                    col: 45,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Integer(
+                            0,
+                            Span {
+                                line: 6,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 6,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 5,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "nested",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "Result",
+                        args: [
+                            TypeExpr {
+                                name: "Option",
+                                args: [
+                                    TypeExpr {
+                                        name: "i32",
+                                        args: [],
+                                        span: Span {
+                                            line: 9,
+                                            col: 38,
+                                        },
+                                    },
+                                ],
+                                span: Span {
+                                    line: 9,
+                                    col: 31,
+                                },
+                            },
+                            TypeExpr {
+                                name: "String",
+                                args: [],
+                                span: Span {
+                                    line: 9,
+                                    col: 44,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 9,
+                            col: 24,
+                        },
+                    },
+                    span: Span {
+                        line: 9,
+                        col: 17,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "Result",
+                args: [
+                    TypeExpr {
+                        name: "Option",
+                        args: [
+                            TypeExpr {
+                                name: "i32",
+                                args: [],
+                                span: Span {
+                                    line: 9,
+                                    col: 70,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            line: 9,
+                            col: 63,
+                        },
+                    },
+                    TypeExpr {
+                        name: "String",
+                        args: [],
+                        span: Span {
+                            line: 9,
+                            col: 76,
+                        },
+                    },
+                ],
+                span: Span {
+                    line: 9,
+                    col: 56,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Ident(
+                            "value",
+                            Span {
+                                line: 10,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 10,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 9,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "read",
+            params: [
+                Param {
+                    name: "path",
+                    ty: TypeExpr {
+                        name: "String",
+                        args: [],
+                        span: Span {
+                            line: 13,
+                            col: 21,
+                        },
+                    },
+                    span: Span {
+                        line: 13,
+                        col: 15,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "String",
+                args: [],
+                span: Span {
+                    line: 13,
+                    col: 32,
+                },
+            },
+            effects: [
+                "fs.read",
+            ],
+            body: [
+                Return {
+                    value: Some(
+                        Ident(
+                            "path",
+                            Span {
+                                line: 14,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 14,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 13,
+                col: 1,
+            },
+        },
+    ],
+}

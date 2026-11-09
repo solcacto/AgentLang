@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, and minimal method calls — emitting structured JSON diagnostics. See `src/` and `tests/integration.rs`.
+> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, and `match` — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -42,7 +42,7 @@
 - [x] Parse `struct` and `enum` declarations
 - [x] Parse `Enum::Variant` paths, method calls, closures, and the `?` operator
 - [x] Error recovery: report a diagnostic and recover to the next declaration/statement
-- [ ] Snapshot tests: source → AST
+- [x] Snapshot tests: source → AST (`tests/snapshots/`, see `tests/ast_snapshots.rs`)
 
 ## Milestone 3 — Static Type Checking
 
@@ -131,7 +131,8 @@ Do **vertical slices**, not horizontal layers. Get one thing working end-to-end 
 1. **Skeleton:** `function main() -> i32 { return 0; }` parses and type-checks clean. ✅
 2. **One error path:** a type mismatch produces valid JSON diagnostics. ✅
 3. **Grow the grammar** (let, expressions, calls) behind the same diagnostic pipeline. ✅
-4. **Add structs/enums**, then `Result`/`Option`, then `?`. ← next
-5. **Harden** with the LLM self-repair test harness.
+4. **Add structs/enums**, then `Result`/`Option`, then `?`, then `match`. ✅
+5. **Harden** with error recovery, AST snapshots, and the self-repair benchmark harness. ✅
+6. **Close the loop:** implement a real LLM `Repairer` and record the first-attempt-compile baseline. ← next
 
 This keeps the differentiator (structured diagnostics) visible from day one instead of bolting it on at the end.
