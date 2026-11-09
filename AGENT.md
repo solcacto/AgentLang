@@ -4,6 +4,22 @@ AgentLang is a statically typed, capability-secured language whose compiler
 speaks to agents. Instead of reading prose compiler output, your OpenCode agent
 parses structured JSON diagnostics and applies fixes automatically.
 
+## Quick Start for OpenCode
+
+Copy and paste this into your OpenCode chat to set up AgentLang in your project:
+
+```
+[See AGENT_SETUP_PROMPT.md for the copy/paste setup prompt]
+```
+
+Or manually:
+
+1. Create an `agentlang/` folder in your project
+2. Copy `agent` binary (built from `cargo build --release`) into `agentlang/bin/`
+3. Copy `tools/opencode_repairer.py` into `agentlang/tools/`
+4. Copy `benchmarks/` and `examples/` into `agentlang/`
+5. Write your first `.ag` file and run `agentlang/bin/agent check --format json file.ag`
+
 ## 1. Get the compiler
 
 The `agent` binary is built from the AgentLang Rust project:
