@@ -110,6 +110,7 @@ Module {
             body: [
                 Let {
                     name: "value",
+                    mutable: false,
                     value: Try {
                         expr: Call {
                             callee: "parse_value",
@@ -402,6 +403,7 @@ Module {
             body: [
                 Let {
                     name: "present",
+                    mutable: false,
                     value: MethodCall {
                         receiver: Ident(
                             "value",

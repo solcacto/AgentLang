@@ -68,7 +68,7 @@ format or parsing prose.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | Repair category (`replace_expression`, `add_import`, `declare_symbol`, `insert_return`, `add_field`, `rename_symbol`) |
+| `type` | string | Repair category (`replace_expression`, `add_import`, `declare_symbol`, `insert_return`, `add_field`, `add_mut`, `rename_symbol`) |
 | `target` | string? | Symbol/expression to modify |
 | `expected_type` | string? | Type the repair should produce |
 
@@ -90,6 +90,7 @@ format or parsing prose.
 | `DUPLICATE_FIELD` | Field declared or initialized twice |
 | `NOT_A_STRUCT` | Field access on a non-struct type |
 | `UNKNOWN_VARIANT` | Enum/variant does not exist |
+| `IMMUTABLE_ASSIGNMENT` | Assignment to a binding not declared with `let mut` |
 | `UNKNOWN_METHOD` | Method does not exist on the receiver type |
 | `INVALID_TRY` | `?` used outside a matching `Option`/`Result` context |
 | `TRY_TYPE_MISMATCH` | `?` propagates a different error type than the function returns |

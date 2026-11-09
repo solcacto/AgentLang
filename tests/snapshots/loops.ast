@@ -1,0 +1,171 @@
+Module {
+    structs: [],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "sum_to",
+            params: [
+                Param {
+                    name: "limit",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 1,
+                            col: 24,
+                        },
+                    },
+                    span: Span {
+                        line: 1,
+                        col: 17,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 1,
+                    col: 32,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "total",
+                    mutable: true,
+                    value: Integer(
+                        0,
+                        Span {
+                            line: 2,
+                            col: 21,
+                        },
+                    ),
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+                Let {
+                    name: "i",
+                    mutable: true,
+                    value: Integer(
+                        0,
+                        Span {
+                            line: 3,
+                            col: 17,
+                        },
+                    ),
+                    span: Span {
+                        line: 3,
+                        col: 5,
+                    },
+                },
+                While {
+                    cond: Binary {
+                        op: Lt,
+                        left: Ident(
+                            "i",
+                            Span {
+                                line: 4,
+                                col: 11,
+                            },
+                        ),
+                        right: Ident(
+                            "limit",
+                            Span {
+                                line: 4,
+                                col: 15,
+                            },
+                        ),
+                        span: Span {
+                            line: 4,
+                            col: 13,
+                        },
+                    },
+                    body: [
+                        Assign {
+                            name: "total",
+                            value: Binary {
+                                op: Add,
+                                left: Ident(
+                                    "total",
+                                    Span {
+                                        line: 5,
+                                        col: 17,
+                                    },
+                                ),
+                                right: Ident(
+                                    "i",
+                                    Span {
+                                        line: 5,
+                                        col: 25,
+                                    },
+                                ),
+                                span: Span {
+                                    line: 5,
+                                    col: 23,
+                                },
+                            },
+                            span: Span {
+                                line: 5,
+                                col: 9,
+                            },
+                        },
+                        Assign {
+                            name: "i",
+                            value: Binary {
+                                op: Add,
+                                left: Ident(
+                                    "i",
+                                    Span {
+                                        line: 6,
+                                        col: 13,
+                                    },
+                                ),
+                                right: Integer(
+                                    1,
+                                    Span {
+                                        line: 6,
+                                        col: 17,
+                                    },
+                                ),
+                                span: Span {
+                                    line: 6,
+                                    col: 15,
+                                },
+                            },
+                            span: Span {
+                                line: 6,
+                                col: 9,
+                            },
+                        },
+                    ],
+                    span: Span {
+                        line: 4,
+                        col: 5,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Ident(
+                            "total",
+                            Span {
+                                line: 8,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 8,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+    ],
+}

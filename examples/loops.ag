@@ -1,0 +1,21 @@
+function sum_to(limit: i32) -> i32 {
+    let mut total = 0;
+    let mut i = 0;
+    while i < limit {
+        total = total + i;
+        i = i + 1;
+    }
+    return total;
+}
+
+function count_down(start: i32) -> i32 {
+    let mut count = start;
+    while count > 0 {
+        count = count - 1;
+    }
+    return count;
+}
+
+function main() -> i32 {
+    return sum_to(5) + count_down(3);
+}

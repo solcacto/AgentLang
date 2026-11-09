@@ -35,6 +35,11 @@ impl Parser {
         &self.tokens[self.pos].kind
     }
 
+    fn peek_at(&self, offset: usize) -> &TokenKind {
+        let index = (self.pos + offset).min(self.tokens.len() - 1);
+        &self.tokens[index].kind
+    }
+
     fn peek_span(&self) -> Span {
         self.tokens[self.pos].span
     }
@@ -161,7 +166,11 @@ impl Parser {
                     break;
                 }
                 TokenKind::RBrace if depth == 0 => break,
-                TokenKind::Let | TokenKind::Return | TokenKind::If if depth == 0 => break,
+                TokenKind::Let | TokenKind::Return | TokenKind::If | TokenKind::While
+                    if depth == 0 =>
+                {
+                    break
+                }
                 TokenKind::LBrace => {
                     depth += 1;
                     self.advance();
@@ -352,6 +361,12 @@ impl Parser {
         if self.at(&TokenKind::Let) {
             let span = self.peek_span();
             self.advance();
+            let mutable = if self.at(&TokenKind::Mut) {
+                self.advance();
+                true
+            } else {
+                false
+            };
             let name = match self.advance() {
                 TokenKind::Identifier(n) => n,
                 _ => return Err(self.err_here("Expected variable name")),
@@ -359,7 +374,12 @@ impl Parser {
             self.expect(&TokenKind::Assign, "`=`")?;
             let value = self.parse_expr()?;
             self.expect(&TokenKind::Semicolon, "`;`")?;
-            Ok(Stmt::Let { name, value, span })
+            Ok(Stmt::Let {
+                name,
+                mutable,
+                value,
+                span,
+            })
         } else if self.at(&TokenKind::Return) {
             let span = self.peek_span();
             self.advance();
@@ -374,13 +394,31 @@ impl Parser {
                     span,
                 })
             }
+        } else if matches!(self.peek(), TokenKind::Identifier(_))
+            && self.peek_at(1) == &TokenKind::Assign
+        {
+            self.parse_assignment()
         } else if self.at(&TokenKind::If) {
             self.parse_if()
+        } else if self.at(&TokenKind::While) {
+            self.parse_while()
         } else {
             let expr = self.parse_expr()?;
             self.expect(&TokenKind::Semicolon, "`;`")?;
             Ok(Stmt::Expr(expr))
         }
+    }
+
+    fn parse_assignment(&mut self) -> Result<Stmt, Diagnostic> {
+        let span = self.peek_span();
+        let name = match self.advance() {
+            TokenKind::Identifier(n) => n,
+            _ => return Err(self.err_here("Expected variable name")),
+        };
+        self.expect(&TokenKind::Assign, "`=`")?;
+        let value = self.parse_expr()?;
+        self.expect(&TokenKind::Semicolon, "`;`")?;
+        Ok(Stmt::Assign { name, value, span })
     }
 
     fn parse_if(&mut self) -> Result<Stmt, Diagnostic> {
@@ -412,6 +450,19 @@ impl Parser {
             else_body,
             span,
         })
+    }
+
+    fn parse_while(&mut self) -> Result<Stmt, Diagnostic> {
+        let span = self.expect(&TokenKind::While, "`while`")?;
+
+        let saved = self.suppress_struct_lit;
+        self.suppress_struct_lit = true;
+        let cond = self.parse_expr();
+        self.suppress_struct_lit = saved;
+        let cond = cond?;
+
+        let body = self.parse_block()?;
+        Ok(Stmt::While { cond, body, span })
     }
 
     /// Parse a `{ ... }` block of statements, recovering at statement

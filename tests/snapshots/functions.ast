@@ -48,6 +48,7 @@ Module {
             body: [
                 Let {
                     name: "sum",
+                    mutable: false,
                     value: Binary {
                         op: Add,
                         left: Ident(
@@ -124,6 +125,7 @@ Module {
             body: [
                 Let {
                     name: "value",
+                    mutable: false,
                     value: Call {
                         callee: "add",
                         args: [

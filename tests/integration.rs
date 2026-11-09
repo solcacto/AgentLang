@@ -912,3 +912,150 @@ function bad(value: i32) -> i32 {
         diags
     );
 }
+
+#[test]
+fn mutable_assignment_and_while_type_check() {
+    let src = r#"
+function sum_to(limit: i32) -> i32 {
+    let mut total = 0;
+    let mut i = 0;
+    while i < limit {
+        total = total + i;
+        i = i + 1;
+    }
+    return total;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn assignment_to_immutable_binding_is_rejected() {
+    let src = r#"
+function main() -> i32 {
+    let value = 1;
+    value = 2;
+    return value;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "IMMUTABLE_ASSIGNMENT" && d.symbol.as_deref() == Some("value")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn assignment_type_mismatch_is_rejected() {
+    let src = r#"
+function main() -> i32 {
+    let mut value = 1;
+    value = "two";
+    return value;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TYPE_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn assignment_to_undefined_symbol_is_rejected() {
+    let src = r#"
+function main() -> i32 {
+    missing = 1;
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "UNDEFINED_SYMBOL" && d.symbol.as_deref() == Some("missing")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn while_condition_must_be_bool() {
+    let src = r#"
+function main() -> i32 {
+    let mut i = 0;
+    while i {
+        i = i + 1;
+    }
+    return i;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "TYPE_MISMATCH" && d.expected.as_deref() == Some("Bool")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn while_body_scope_does_not_leak() {
+    let src = r#"
+function main(flag: Bool) -> i32 {
+    while flag {
+        let inside = 1;
+    }
+    return inside;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "UNDEFINED_SYMBOL" && d.symbol.as_deref() == Some("inside")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn mutable_binding_can_be_updated_from_nested_blocks() {
+    let src = r#"
+function main() -> i32 {
+    let mut total = 0;
+    if true {
+        total = 1;
+    }
+    while total < 3 {
+        total = total + 1;
+    }
+    return total;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn while_does_not_guarantee_return() {
+    let src = r#"
+function spin() -> i32 {
+    while true {
+        return 1;
+    }
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "MISSING_RETURN"),
+        "got {:?}",
+        diags
+    );
+}

@@ -1,0 +1,9 @@
+function sum_to(limit: i32) -> i32 {
+    let mut total = 0;
+    let mut i = 0;
+    while i < limit {
+        total = total + i;
+        i = i + 1;
+    }
+    return total;
+}

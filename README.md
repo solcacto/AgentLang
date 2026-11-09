@@ -65,6 +65,9 @@ cargo run -- check examples/match.ag
 # if / else statements, including else-if chains
 cargo run -- check examples/control_flow.ag
 
+# Mutable bindings (let mut), assignment, and while loops
+cargo run -- check examples/loops.ag
+
 # Machine mode: always emit a JSON array (empty `[]` on success)
 cargo run -- check --format json examples/hello.ag
 cargo run -- check --json examples/bad.ag
@@ -87,9 +90,10 @@ declarations and `Enum::Variant` construction (with payloads), built-in
 `Option::*`/`Result::*`), the `?` operator, closures as `.map` arguments, the
 methods `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`, `is_err`,
 `match` over enums/`Option`/`Result` (with payload binding, wildcards, and
-exhaustiveness checking), and `if` / `else if` / `else` statements with block
-scoping and return-path checking. Loops and mutation are upcoming (see
-[`PHASE1_TODO.md`](PHASE1_TODO.md)).
+exhaustiveness checking), `if` / `else if` / `else` statements, `let mut`
+bindings with assignment, and `while` loops — all with block scoping and
+return-path checking. `for` loops, collection indexing, and mutation through
+struct fields are upcoming (see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
 
 Example diagnostic output:
 

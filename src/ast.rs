@@ -58,6 +58,13 @@ pub struct Param {
 pub enum Stmt {
     Let {
         name: String,
+        mutable: bool,
+        value: Expr,
+        span: Span,
+    },
+    /// `name = expr;` — only valid for a binding declared with `let mut`.
+    Assign {
+        name: String,
         value: Expr,
         span: Span,
     },
@@ -70,6 +77,12 @@ pub enum Stmt {
         cond: Expr,
         then_body: Vec<Stmt>,
         else_body: Option<Vec<Stmt>>,
+        span: Span,
+    },
+    /// `while cond { ... }`
+    While {
+        cond: Expr,
+        body: Vec<Stmt>,
         span: Span,
     },
     Expr(Expr),

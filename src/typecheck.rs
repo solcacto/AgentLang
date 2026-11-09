@@ -17,13 +17,19 @@ struct FuncSig {
     ret: Ty,
 }
 
+#[derive(Clone)]
+struct Binding {
+    ty: Ty,
+    mutable: bool,
+}
+
 pub struct TypeChecker<'a> {
     file: &'a str,
     functions: HashMap<String, FuncSig>,
     structs: HashMap<String, HashMap<String, Ty>>,
     /// Enum name -> (variant name -> optional payload type).
     enums: HashMap<String, HashMap<String, Option<Ty>>>,
-    scopes: Vec<HashMap<String, Ty>>,
+    scopes: Vec<HashMap<String, Binding>>,
     /// Return type of the function currently being checked (for `?`).
     current_return: Ty,
 }
@@ -156,7 +162,7 @@ impl<'a> TypeChecker<'a> {
                 self.scopes
                     .last_mut()
                     .unwrap()
-                    .insert(param.name.clone(), ty);
+                    .insert(param.name.clone(), Binding { ty, mutable: false });
             }
 
             let ret_ty = self.resolve_type(&function.return_type);
@@ -219,9 +225,13 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn lookup(&self, name: &str) -> Option<Ty> {
+        self.lookup_binding(name).map(|binding| binding.ty)
+    }
+
+    fn lookup_binding(&self, name: &str) -> Option<Binding> {
         for scope in self.scopes.iter().rev() {
-            if let Some(ty) = scope.get(name) {
-                return Some(ty.clone());
+            if let Some(binding) = scope.get(name) {
+                return Some(binding.clone());
             }
         }
         None
@@ -229,7 +239,12 @@ impl<'a> TypeChecker<'a> {
 
     fn check_stmt(&mut self, stmt: &Stmt, ret_ty: &Ty, diags: &mut Vec<Diagnostic>) {
         match stmt {
-            Stmt::Let { name, value, span } => {
+            Stmt::Let {
+                name,
+                mutable,
+                value,
+                span,
+            } => {
                 let ty = self.check_expr(value, diags);
                 if self.scopes.last().unwrap().contains_key(name) {
                     diags.push(
@@ -245,7 +260,67 @@ impl<'a> TypeChecker<'a> {
                         .with_symbol(name),
                     );
                 }
-                self.scopes.last_mut().unwrap().insert(name.clone(), ty);
+                self.scopes.last_mut().unwrap().insert(
+                    name.clone(),
+                    Binding {
+                        ty,
+                        mutable: *mutable,
+                    },
+                );
+            }
+            Stmt::Assign { name, value, span } => {
+                let actual = self.check_expr(value, diags);
+                match self.lookup_binding(name) {
+                    None => {
+                        diags.push(
+                            Diagnostic::error(
+                                "UNDEFINED_SYMBOL",
+                                self.file,
+                                *span,
+                                &format!("Cannot assign to undefined variable `{}`", name),
+                            )
+                            .with_symbol(name)
+                            .with_repair(
+                                "declare_symbol",
+                                Some(name),
+                                None,
+                            ),
+                        );
+                    }
+                    Some(binding) if !binding.mutable => {
+                        diags.push(
+                            Diagnostic::error(
+                                "IMMUTABLE_ASSIGNMENT",
+                                self.file,
+                                *span,
+                                &format!("Cannot assign to `{}`; declare it with `let mut`", name),
+                            )
+                            .with_symbol(name)
+                            .with_repair("add_mut", Some(name), None),
+                        );
+                    }
+                    Some(binding) => {
+                        if !compatible(&binding.ty, &actual) {
+                            diags.push(
+                                Diagnostic::error(
+                                    "TYPE_MISMATCH",
+                                    self.file,
+                                    *span,
+                                    &format!(
+                                        "Cannot assign `{}` to `{}`: expected `{}`, found `{}`",
+                                        actual, name, binding.ty, actual
+                                    ),
+                                )
+                                .with_types(&binding.ty.to_string(), &actual.to_string())
+                                .with_repair(
+                                    "replace_expression",
+                                    None,
+                                    Some(&binding.ty.to_string()),
+                                ),
+                            );
+                        }
+                    }
+                }
             }
             Stmt::Return { value, span } => {
                 let actual = match value {
@@ -299,6 +374,30 @@ impl<'a> TypeChecker<'a> {
                 if let Some(else_body) = else_body {
                     self.check_block(else_body, ret_ty, diags);
                 }
+            }
+            Stmt::While {
+                cond,
+                body,
+                span: _,
+            } => {
+                let cond_ty = self.check_expr(cond, diags);
+                if !compatible(&Ty::Bool, &cond_ty) {
+                    diags.push(
+                        Diagnostic::error(
+                            "TYPE_MISMATCH",
+                            self.file,
+                            cond.span(),
+                            &format!("`while` condition must be `Bool`, found `{}`", cond_ty),
+                        )
+                        .with_types("Bool", &cond_ty.to_string())
+                        .with_repair(
+                            "replace_expression",
+                            None,
+                            Some("Bool"),
+                        ),
+                    );
+                }
+                self.check_block(body, ret_ty, diags);
             }
             Stmt::Expr(expr) => {
                 self.check_expr(expr, diags);
@@ -677,10 +776,13 @@ impl<'a> TypeChecker<'a> {
             Some(Some(payload_ty)) => match binding {
                 Some(name) if *has_parens => {
                     if name != "_" {
-                        self.scopes
-                            .last_mut()
-                            .unwrap()
-                            .insert(name.clone(), payload_ty.clone());
+                        self.scopes.last_mut().unwrap().insert(
+                            name.clone(),
+                            Binding {
+                                ty: payload_ty.clone(),
+                                mutable: false,
+                            },
+                        );
                     }
                 }
                 _ => {
@@ -1337,10 +1439,13 @@ impl<'a> TypeChecker<'a> {
         diags: &mut Vec<Diagnostic>,
     ) -> Ty {
         self.scopes.push(HashMap::new());
-        self.scopes
-            .last_mut()
-            .unwrap()
-            .insert(param.to_string(), param_ty);
+        self.scopes.last_mut().unwrap().insert(
+            param.to_string(),
+            Binding {
+                ty: param_ty,
+                mutable: false,
+            },
+        );
         let body_ty = self.check_expr(body, diags);
         self.scopes.pop();
         body_ty
