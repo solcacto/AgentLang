@@ -62,6 +62,9 @@ cargo run -- check examples/map.ag
 # Pattern matching on enums, Option, and Result
 cargo run -- check examples/match.ag
 
+# if / else statements, including else-if chains
+cargo run -- check examples/control_flow.ag
+
 # Machine mode: always emit a JSON array (empty `[]` on success)
 cargo run -- check --format json examples/hello.ag
 cargo run -- check --json examples/bad.ag
@@ -81,11 +84,12 @@ Currently supported: functions with typed parameters and `effects(...)`, `let`,
 declarations with typed fields, struct literals, field access, `enum`
 declarations and `Enum::Variant` construction (with payloads), built-in
 `Option<T>`/`Result<T, E>` construction (`Some`/`None`/`Ok`/`Err` and
-`Option::*`/`Result::*`), the `?` operator, closures as `.map` arguments, and
-the methods `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`,
-`is_err`, and `match` over enums/`Option`/`Result` (with payload binding,
-wildcards, and exhaustiveness checking). Control flow (`if` loops) is upcoming
-(see [`PHASE1_TODO.md`](PHASE1_TODO.md)).
+`Option::*`/`Result::*`), the `?` operator, closures as `.map` arguments, the
+methods `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`, `is_err`,
+`match` over enums/`Option`/`Result` (with payload binding, wildcards, and
+exhaustiveness checking), and `if` / `else if` / `else` statements with block
+scoping and return-path checking. Loops and mutation are upcoming (see
+[`PHASE1_TODO.md`](PHASE1_TODO.md)).
 
 Example diagnostic output:
 

@@ -161,7 +161,7 @@ impl Parser {
                     break;
                 }
                 TokenKind::RBrace if depth == 0 => break,
-                TokenKind::Let | TokenKind::Return if depth == 0 => break,
+                TokenKind::Let | TokenKind::Return | TokenKind::If if depth == 0 => break,
                 TokenKind::LBrace => {
                     depth += 1;
                     self.advance();
@@ -300,22 +300,7 @@ impl Parser {
             self.expect(&TokenKind::RParen, "`)`")?;
         }
 
-        self.expect(&TokenKind::LBrace, "`{`")?;
-        let mut body = Vec::new();
-        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-            let start = self.pos;
-            match self.parse_stmt() {
-                Ok(stmt) => body.push(stmt),
-                Err(diag) => {
-                    self.diags.push(diag);
-                    self.recover_to_stmt_boundary();
-                    if self.pos == start {
-                        self.advance();
-                    }
-                }
-            }
-        }
-        self.expect(&TokenKind::RBrace, "`}`")?;
+        let body = self.parse_block()?;
 
         Ok(FunctionDecl {
             name,
@@ -389,11 +374,66 @@ impl Parser {
                     span,
                 })
             }
+        } else if self.at(&TokenKind::If) {
+            self.parse_if()
         } else {
             let expr = self.parse_expr()?;
             self.expect(&TokenKind::Semicolon, "`;`")?;
             Ok(Stmt::Expr(expr))
         }
+    }
+
+    fn parse_if(&mut self) -> Result<Stmt, Diagnostic> {
+        let span = self.expect(&TokenKind::If, "`if`")?;
+
+        // `if point { ... }` would otherwise greedily parse `point { ... }` as a
+        // struct literal. Suppress that for the condition only.
+        let saved = self.suppress_struct_lit;
+        self.suppress_struct_lit = true;
+        let cond = self.parse_expr();
+        self.suppress_struct_lit = saved;
+        let cond = cond?;
+
+        let then_body = self.parse_block()?;
+        let else_body = if self.at(&TokenKind::Else) {
+            self.advance();
+            if self.at(&TokenKind::If) {
+                Some(vec![self.parse_if()?])
+            } else {
+                Some(self.parse_block()?)
+            }
+        } else {
+            None
+        };
+
+        Ok(Stmt::If {
+            cond,
+            then_body,
+            else_body,
+            span,
+        })
+    }
+
+    /// Parse a `{ ... }` block of statements, recovering at statement
+    /// boundaries so a syntax error does not abort the enclosing function.
+    fn parse_block(&mut self) -> Result<Vec<Stmt>, Diagnostic> {
+        self.expect(&TokenKind::LBrace, "`{`")?;
+        let mut body = Vec::new();
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+            let start = self.pos;
+            match self.parse_stmt() {
+                Ok(stmt) => body.push(stmt),
+                Err(diag) => {
+                    self.diags.push(diag);
+                    self.recover_to_stmt_boundary();
+                    if self.pos == start {
+                        self.advance();
+                    }
+                }
+            }
+        }
+        self.expect(&TokenKind::RBrace, "`}`")?;
+        Ok(body)
     }
 
     fn parse_type(&mut self) -> Result<TypeExpr, Diagnostic> {

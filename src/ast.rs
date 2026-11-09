@@ -65,7 +65,38 @@ pub enum Stmt {
         value: Option<Expr>,
         span: Span,
     },
+    /// `if cond { ... } else { ... }` (also supports `else if`).
+    If {
+        cond: Expr,
+        then_body: Vec<Stmt>,
+        else_body: Option<Vec<Stmt>>,
+        span: Span,
+    },
     Expr(Expr),
+}
+
+impl Stmt {
+    /// True when this statement is guaranteed to return from the function.
+    ///
+    /// Used to decide whether a non-unit function covers every path with an
+    /// explicit `return`. An `if` only guarantees a return when it has an
+    /// `else` and both branches guarantee one.
+    pub fn guarantees_return(&self) -> bool {
+        match self {
+            Stmt::Return { .. } => true,
+            Stmt::If {
+                then_body,
+                else_body: Some(else_body),
+                ..
+            } => block_guarantees_return(then_body) && block_guarantees_return(else_body),
+            _ => false,
+        }
+    }
+}
+
+/// True when a sequence of statements always returns.
+pub fn block_guarantees_return(body: &[Stmt]) -> bool {
+    body.iter().any(Stmt::guarantees_return)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

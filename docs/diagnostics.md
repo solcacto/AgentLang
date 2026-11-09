@@ -83,7 +83,7 @@ format or parsing prose.
 | `UNDEFINED_FUNCTION` | Call to an unknown function |
 | `ARITY_MISMATCH` | Wrong number of arguments |
 | `DUPLICATE_SYMBOL` | Symbol/type/variant declared twice |
-| `MISSING_RETURN` | Non-unit function has no `return` |
+| `MISSING_RETURN` | Non-unit function does not return on every path |
 | `UNKNOWN_TYPE` | Struct literal names an undefined struct |
 | `UNKNOWN_FIELD` | Field does not exist on the struct |
 | `MISSING_FIELD` | Struct literal is missing a required field |

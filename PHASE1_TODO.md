@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, and `match` — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
+> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, and `if`/`else` — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -41,6 +41,7 @@
 - [x] Parse type expressions (named, generic like `Result<T, E>`, `Array<T>`)
 - [x] Parse `struct` and `enum` declarations
 - [x] Parse `Enum::Variant` paths, method calls, closures, and the `?` operator
+- [x] Parse `if` / `else` statements, including `else if` and nested blocks
 - [x] Error recovery: report a diagnostic and recover to the next declaration/statement
 - [x] Snapshot tests: source → AST (`tests/snapshots/`, see `tests/ast_snapshots.rs`)
 
@@ -53,6 +54,7 @@
 - [x] Type-check expressions and operators
 - [x] Type-check function calls (arity + argument types + return type)
 - [x] Type-check `return` against declared return type
+- [x] Type-check `if` / `else`: `Bool` conditions, per-branch scopes, and return-path coverage
 - [x] Detect undefined symbols and duplicate declarations
 - [x] Unit tests: accept valid programs, reject invalid ones with correct error codes
 
@@ -109,13 +111,13 @@
 
 ## Baseline (recorded 2026-11-09)
 
-`agent bench benchmarks` over seven tasks (`benchmarks/01_ok_baseline` … `07_non_exhaustive_match`):
+`agent bench benchmarks` over ten tasks (`benchmarks/01_ok_baseline` … `10_missing_return`):
 
 | Metric | Value |
 | --- | --- |
-| Tasks | 7 |
-| First-pass clean | 1 / 7 (the intentional baseline task) |
-| Resolved with oracle repair | 7 / 7 |
+| Tasks | 10 |
+| First-pass clean | 1 / 10 (the intentional baseline task) |
+| Resolved with oracle repair | 10 / 10 |
 | Mean repair iterations (non-clean tasks) | 1.0 |
 | Remaining unresolved | 0 |
 

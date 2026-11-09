@@ -1,0 +1,22 @@
+function sign(value: i32) -> i32 {
+    if value > 0 {
+        return 1;
+    } else if value < 0 {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+function abs(value: i32) -> i32 {
+    if value < 0 {
+        return -value;
+    }
+    return value;
+}
+
+function main() -> i32 {
+    let a = sign(-5);
+    let b = abs(-3);
+    return a + b;
+}

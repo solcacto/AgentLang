@@ -775,3 +775,140 @@ fn cli_check_format_json_always_emits_json() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn if_else_and_else_if_type_check() {
+    let src = r#"
+function classify(value: i32) -> i32 {
+    if value > 0 {
+        return 1;
+    } else if value < 0 {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+function abs(value: i32) -> i32 {
+    if value < 0 {
+        return -value;
+    }
+    return value;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn if_condition_must_be_bool() {
+    let src = r#"
+function main() -> i32 {
+    if 1 {
+        return 1;
+    }
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "TYPE_MISMATCH" && d.expected.as_deref() == Some("Bool")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn if_without_else_does_not_guarantee_return() {
+    let src = r#"
+function check(value: i32) -> i32 {
+    if value > 0 {
+        return 1;
+    }
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "MISSING_RETURN"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn if_with_both_branches_returning_satisfies_return_check() {
+    let src = r#"
+function check(value: i32) -> i32 {
+    if value > 0 {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        !diags.iter().any(|d| d.code == "MISSING_RETURN"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn branch_scopes_do_not_leak() {
+    let src = r#"
+function main(flag: Bool) -> i32 {
+    if flag {
+        let hidden = 1;
+    }
+    return hidden;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "UNDEFINED_SYMBOL" && d.symbol.as_deref() == Some("hidden")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn nested_if_and_early_return_type_check() {
+    let src = r#"
+function pick(a: i32, b: i32) -> i32 {
+    if a > 0 {
+        if b > 0 {
+            return 1;
+        } else {
+            return 2;
+        }
+    }
+    return 3;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn return_type_is_checked_inside_branches() {
+    let src = r#"
+function bad(value: i32) -> i32 {
+    if value > 0 {
+        return "positive";
+    } else {
+        return 0;
+    }
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TYPE_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}

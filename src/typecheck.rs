@@ -161,12 +161,14 @@ impl<'a> TypeChecker<'a> {
 
             let ret_ty = self.resolve_type(&function.return_type);
             self.current_return = ret_ty.clone();
-            let mut saw_return = false;
             for stmt in &function.body {
-                self.check_stmt(stmt, &ret_ty, &mut diags, &mut saw_return);
+                self.check_stmt(stmt, &ret_ty, &mut diags);
             }
 
-            if ret_ty != Ty::Unit && ret_ty != Ty::Unknown && !saw_return {
+            if ret_ty != Ty::Unit
+                && ret_ty != Ty::Unknown
+                && !block_guarantees_return(&function.body)
+            {
                 diags.push(
                     Diagnostic::error(
                         "MISSING_RETURN",
@@ -225,13 +227,7 @@ impl<'a> TypeChecker<'a> {
         None
     }
 
-    fn check_stmt(
-        &mut self,
-        stmt: &Stmt,
-        ret_ty: &Ty,
-        diags: &mut Vec<Diagnostic>,
-        saw_return: &mut bool,
-    ) {
+    fn check_stmt(&mut self, stmt: &Stmt, ret_ty: &Ty, diags: &mut Vec<Diagnostic>) {
         match stmt {
             Stmt::Let { name, value, span } => {
                 let ty = self.check_expr(value, diags);
@@ -252,7 +248,6 @@ impl<'a> TypeChecker<'a> {
                 self.scopes.last_mut().unwrap().insert(name.clone(), ty);
             }
             Stmt::Return { value, span } => {
-                *saw_return = true;
                 let actual = match value {
                     Some(expr) => self.check_expr(expr, diags),
                     None => Ty::Unit,
@@ -277,10 +272,47 @@ impl<'a> TypeChecker<'a> {
                     );
                 }
             }
+            Stmt::If {
+                cond,
+                then_body,
+                else_body,
+                span: _,
+            } => {
+                let cond_ty = self.check_expr(cond, diags);
+                if !compatible(&Ty::Bool, &cond_ty) {
+                    diags.push(
+                        Diagnostic::error(
+                            "TYPE_MISMATCH",
+                            self.file,
+                            cond.span(),
+                            &format!("`if` condition must be `Bool`, found `{}`", cond_ty),
+                        )
+                        .with_types("Bool", &cond_ty.to_string())
+                        .with_repair(
+                            "replace_expression",
+                            None,
+                            Some("Bool"),
+                        ),
+                    );
+                }
+                self.check_block(then_body, ret_ty, diags);
+                if let Some(else_body) = else_body {
+                    self.check_block(else_body, ret_ty, diags);
+                }
+            }
             Stmt::Expr(expr) => {
                 self.check_expr(expr, diags);
             }
         }
+    }
+
+    /// Check a block in a fresh scope so declarations do not leak out.
+    fn check_block(&mut self, body: &[Stmt], ret_ty: &Ty, diags: &mut Vec<Diagnostic>) {
+        self.scopes.push(HashMap::new());
+        for stmt in body {
+            self.check_stmt(stmt, ret_ty, diags);
+        }
+        self.scopes.pop();
     }
 
     fn check_expr(&mut self, expr: &Expr, diags: &mut Vec<Diagnostic>) -> Ty {
