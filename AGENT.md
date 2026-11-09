@@ -57,6 +57,16 @@ rustc program.rs -o program
 ./program
 ```
 
+## 4. Compile and execute (`agent run`)
+
+Compile and run in one step:
+
+```bash
+agent run program.ag
+```
+
+This is equivalent to `agent build` followed by `rustc` and executing the resulting binary. The exit code of `agent run` is the exit code of your program.
+
 ### Type mapping (AgentLang → Rust)
 
 | AgentLang | Rust |
@@ -74,6 +84,16 @@ rustc program.rs -o program
 | `items[i]` | `al_index(&items, i as i32)` (bounds-checked) |
 | `items[i] = v` | `al_index_mut(&mut items, i as i32) = v` |
 | `expr?` | `expr?` |
+| `opt.map(\|x\| expr)` | `al_map_option(&opt, \|x\| expr)` |
+| `result.map(\|x\| expr)` | `al_map_result(&result, \|x\| expr)` |
+| `opt.unwrap()` | `al_unwrap_option(opt)` |
+| `result.unwrap()` | `al_unwrap_result(result)` |
+| `opt.unwrap_or(v)` | `al_unwrap_or_option(opt, v)` |
+| `result.unwrap_or(v)` | `al_unwrap_or_result(result, v)` |
+| `opt.is_some()` | `al_is_some(&opt)` |
+| `opt.is_none()` | `al_is_none(&opt)` |
+| `result.is_ok()` | `al_is_ok(&result)` |
+| `result.is_err()` | `al_is_err(&result)` |
 
 ### `main` special handling
 

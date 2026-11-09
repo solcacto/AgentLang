@@ -13,8 +13,11 @@ pub mod rt;
 pub mod typecheck;
 pub mod types;
 
+use crate::lexer::Span;
 use ast::Module;
 use diagnostic::Diagnostic;
+use std::collections::HashMap;
+use types::Ty;
 
 /// Run the full front-end on a source string.
 ///
@@ -42,8 +45,13 @@ pub fn check_source(source: &str, file: &str) -> Vec<Diagnostic> {
 
 /// Run the full front-end and return the verified `Module` on success.
 ///
-/// This is used by `agent build` to lower a type-checked program to Rust.
-pub fn check_and_lower(source: &str, file: &str) -> Result<Module, Vec<Diagnostic>> {
+/// This is used by `agent build` and `agent run` to lower a type-checked
+/// program to Rust. Returns the module plus resolved expression types
+/// (keyed by span) for codegen.
+pub fn check_and_lower(
+    source: &str,
+    file: &str,
+) -> Result<(Module, HashMap<Span, Ty>), Vec<Diagnostic>> {
     let mut lexer = lexer::Lexer::new(source, file);
     let tokens = match lexer.tokenize() {
         Ok(tokens) => tokens,
@@ -61,7 +69,7 @@ pub fn check_and_lower(source: &str, file: &str) -> Result<Module, Vec<Diagnosti
     let diags = checker.check_module(&module);
 
     if diags.is_empty() {
-        Ok(module)
+        Ok((module, checker.resolved_types))
     } else {
         Err(diags)
     }

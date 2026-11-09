@@ -39,6 +39,8 @@ pub struct TypeChecker<'a> {
     current_effects: Vec<String>,
     /// Name of the function currently being checked (for diagnostics).
     current_function: String,
+    /// Resolved expression types keyed by span, used by codegen.
+    pub resolved_types: HashMap<Span, Ty>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -53,6 +55,7 @@ impl<'a> TypeChecker<'a> {
             current_return: Ty::Unknown,
             current_effects: Vec::new(),
             current_function: String::new(),
+            resolved_types: HashMap::new(),
         }
     }
 
@@ -1668,6 +1671,8 @@ impl<'a> TypeChecker<'a> {
         diags: &mut Vec<Diagnostic>,
     ) -> Ty {
         let receiver_ty = self.check_expr(receiver, diags);
+        self.resolved_types
+            .insert(receiver.span(), receiver_ty.clone());
         match method {
             "map" => self.method_map(receiver_ty, args, span, diags),
             "unwrap" => match receiver_ty {

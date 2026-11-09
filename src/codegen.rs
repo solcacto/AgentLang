@@ -5,6 +5,9 @@
 //! Rust equivalent, so the translation is mostly syntactic with type mapping.
 
 use crate::ast::*;
+use crate::lexer;
+use crate::types::Ty;
+use std::collections::HashMap;
 
 /// A Rust source code generator with indentation tracking.
 pub struct Codegen {
@@ -12,6 +15,8 @@ pub struct Codegen {
     indent: usize,
     in_main: bool,
     main_returns_unit: bool,
+    /// Resolved expression types keyed by span, from the type checker.
+    resolved_types: HashMap<lexer::Span, Ty>,
 }
 
 impl Codegen {
@@ -21,7 +26,14 @@ impl Codegen {
             indent: 0,
             in_main: false,
             main_returns_unit: true,
+            resolved_types: HashMap::new(),
         }
+    }
+
+    /// Set the resolved types from the type checker.
+    pub fn with_resolved_types(mut self, types: HashMap<lexer::Span, Ty>) -> Self {
+        self.resolved_types = types;
+        self
     }
 
     pub fn into_output(self) -> String {
@@ -104,6 +116,92 @@ impl Codegen {
         self.writeln("{");
         self.indent += 1;
         self.writeln("map.insert(key, val)");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("");
+        self.writeln("/// Map a function over an `Option<T>`, producing `Option<U>`.");
+        self.writeln(
+            "pub fn al_map_option<T: Clone, U>(opt: &Option<T>, f: impl FnOnce(T) -> U) -> Option<U>",
+        );
+        self.writeln("{");
+        self.indent += 1;
+        self.writeln("opt.as_ref().map(|x| f(x.clone()))");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Map a function over a `Result<T, E>`, producing `Result<U, E>`.");
+        self.writeln(
+            "pub fn al_map_result<T: Clone, E: Clone, U>(result: &Result<T, E>, f: impl FnOnce(T) -> U) -> Result<U, E>",
+        );
+        self.writeln("{");
+        self.indent += 1;
+        self.writeln("match result {");
+        self.indent += 1;
+        self.writeln("Ok(x) => Ok(f(x.clone())),");
+        self.writeln("Err(e) => Err(e.clone()),");
+        self.indent -= 1;
+        self.writeln("}");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln(
+            "/// Unwrap an `Option<T>`, panicking with an AgentLang-style message if `None`.",
+        );
+        self.writeln("pub fn al_unwrap_option<T>(opt: Option<T>) -> T {");
+        self.indent += 1;
+        self.writeln("opt.unwrap_or_else(|| panic!(\"AgentLang: unwrap on None\"))");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln(
+            "/// Unwrap a `Result<T, E>`, panicking with an AgentLang-style message if `Err`.",
+        );
+        self.writeln("pub fn al_unwrap_result<T, E: std::fmt::Debug>(result: Result<T, E>) -> T {");
+        self.indent += 1;
+        self.writeln("result.unwrap_or_else(|e| panic!(\"AgentLang: unwrap on Err: {:?}\", e))");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Unwrap an `Option<T>` or return a default value.");
+        self.writeln("pub fn al_unwrap_or_option<T>(opt: Option<T>, default: T) -> T {");
+        self.indent += 1;
+        self.writeln("opt.unwrap_or(default)");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Unwrap a `Result<T, E>` or return a default value.");
+        self.writeln("pub fn al_unwrap_or_result<T, E>(result: Result<T, E>, default: T) -> T {");
+        self.indent += 1;
+        self.writeln("result.unwrap_or(default)");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Check if an `Option<T>` is `Some`.");
+        self.writeln("pub fn al_is_some<T>(opt: &Option<T>) -> bool {");
+        self.indent += 1;
+        self.writeln("opt.is_some()");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Check if an `Option<T>` is `None`.");
+        self.writeln("pub fn al_is_none<T>(opt: &Option<T>) -> bool {");
+        self.indent += 1;
+        self.writeln("opt.is_none()");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Check if a `Result<T, E>` is `Ok`.");
+        self.writeln("pub fn al_is_ok<T, E>(result: &Result<T, E>) -> bool {");
+        self.indent += 1;
+        self.writeln("result.is_ok()");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Check if a `Result<T, E>` is `Err`.");
+        self.writeln("pub fn al_is_err<T, E>(result: &Result<T, E>) -> bool {");
+        self.indent += 1;
+        self.writeln("result.is_err()");
         self.indent -= 1;
         self.writeln("}");
         self.writeln("");
@@ -542,7 +640,44 @@ impl Codegen {
             } => {
                 let recv = self.expr_to_rust(receiver);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_rust(a)).collect();
-                format!("{}.{}({})", recv, method, arg_strs.join(", "))
+                // Look up the receiver type to dispatch to AgentLang-native runtime functions.
+                let recv_ty = self.resolved_types.get(&receiver.span()).cloned();
+                match (method.as_str(), recv_ty) {
+                    ("map", Some(Ty::Option(_))) => {
+                        format!("al_map_option(&{}, {})", recv, arg_strs.join(", "))
+                    }
+                    ("map", Some(Ty::Result(_, _))) => {
+                        format!("al_map_result(&{}, {})", recv, arg_strs.join(", "))
+                    }
+                    ("unwrap", Some(Ty::Option(_))) => {
+                        format!("al_unwrap_option({})", recv)
+                    }
+                    ("unwrap", Some(Ty::Result(_, _))) => {
+                        format!("al_unwrap_result({})", recv)
+                    }
+                    ("unwrap_or", Some(Ty::Option(_))) => {
+                        format!("al_unwrap_or_option({}, {})", recv, arg_strs.join(", "))
+                    }
+                    ("unwrap_or", Some(Ty::Result(_, _))) => {
+                        format!("al_unwrap_or_result({}, {})", recv, arg_strs.join(", "))
+                    }
+                    ("is_some", Some(Ty::Option(_))) => {
+                        format!("al_is_some(&{})", recv)
+                    }
+                    ("is_none", Some(Ty::Option(_))) => {
+                        format!("al_is_none(&{})", recv)
+                    }
+                    ("is_ok", Some(Ty::Result(_, _))) => {
+                        format!("al_is_ok(&{})", recv)
+                    }
+                    ("is_err", Some(Ty::Result(_, _))) => {
+                        format!("al_is_err(&{})", recv)
+                    }
+                    _ => {
+                        // Fall back to Rust method call for unknown types/methods.
+                        format!("{}.{}({})", recv, method, arg_strs.join(", "))
+                    }
+                }
             }
             Expr::Try { expr, .. } => {
                 let e = self.expr_to_rust(expr);

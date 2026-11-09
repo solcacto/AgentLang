@@ -150,3 +150,13 @@ Do **vertical slices**, not horizontal layers. Get one thing working end-to-end 
 6. **Close the loop:** implement a real LLM `Repairer` and record the first-attempt-compile baseline. ✅ (done with rule-based `CommandRepairer` agent; swap in an LLM command for real results)
 
 This keeps the differentiator (structured diagnostics) visible from day one instead of bolting it on at the end.
+
+---
+
+## Phase 3 — Code Generation & Execution
+
+- [x] **`agent run`** — compile and execute `.ag` files in one step (`agent build` + `rustc` + execute)
+- [x] **Runtime prelude** — `al_index`, `al_index_mut`, `al_map_get`, `al_map_insert`, `al_map_option`, `al_map_result`, `al_unwrap_option`, `al_unwrap_result`, `al_unwrap_or_option`, `al_unwrap_or_result`, `al_is_some`, `al_is_none`, `al_is_ok`, `al_is_err`
+- [x] **Stdlib methods** — `map`, `unwrap`, `unwrap_or`, `is_some`, `is_none`, `is_ok`, `is_err` lowered to AgentLang-native runtime functions
+- [x] **`main` return types** — `i32` → `process::exit(code)`, `Result<T, E>` → `Result<(), E>` with `?` support
+- [ ] **LSP support** — language server protocol for IDE integration (diagnostics, go-to-definition, etc.)

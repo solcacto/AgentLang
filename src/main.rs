@@ -5,7 +5,7 @@
 
 use std::env;
 use std::fs;
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
@@ -18,6 +18,7 @@ fn main() -> ExitCode {
     match args[1].as_str() {
         "check" => check(&args),
         "build" => build(&args),
+        "run" => run(&args),
         "bench" => bench(&args),
         "-h" | "--help" | "help" => {
             print_usage();
@@ -139,8 +140,9 @@ fn build(args: &[String]) -> ExitCode {
     };
 
     match agentlang::check_and_lower(&source, file) {
-        Ok(module) => {
-            let mut codegen = agentlang::codegen::Codegen::new();
+        Ok((module, resolved_types)) => {
+            let mut codegen =
+                agentlang::codegen::Codegen::new().with_resolved_types(resolved_types);
             codegen.lower_module(&module);
             let rust_source = codegen.into_output();
 
@@ -157,6 +159,100 @@ fn build(args: &[String]) -> ExitCode {
                 }
                 Err(err) => {
                     eprintln!("error: could not write `{}`: {}", out_path, err);
+                    ExitCode::from(2)
+                }
+            }
+        }
+        Err(diags) => {
+            match serde_json::to_string_pretty(&diags) {
+                Ok(rendered) => println!("{}", rendered),
+                Err(err) => eprintln!("error: failed to serialize diagnostics: {}", err),
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(args: &[String]) -> ExitCode {
+    let file = match args.get(2) {
+        Some(f) => f.as_str(),
+        None => {
+            eprintln!("error: `agent run` requires a file path");
+            return ExitCode::from(2);
+        }
+    };
+
+    let source = match fs::read_to_string(file) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("error: could not read `{}`: {}", file, err);
+            return ExitCode::from(2);
+        }
+    };
+
+    match agentlang::check_and_lower(&source, file) {
+        Ok((module, resolved_types)) => {
+            let mut codegen =
+                agentlang::codegen::Codegen::new().with_resolved_types(resolved_types);
+            codegen.lower_module(&module);
+            let rust_source = codegen.into_output();
+
+            let out_path = if let Some(stem) = file.strip_suffix(".ag") {
+                format!("{}.rs", stem)
+            } else {
+                format!("{}.rs", file)
+            };
+
+            if let Err(err) = fs::write(&out_path, &rust_source) {
+                eprintln!("error: could not write `{}`: {}", out_path, err);
+                return ExitCode::from(2);
+            }
+
+            let exe_path = if let Some(stem) = file.strip_suffix(".ag") {
+                format!("{}.exe", stem)
+            } else {
+                format!("{}.exe", file)
+            };
+
+            let compile_status = Command::new("rustc")
+                .arg(&out_path)
+                .arg("-o")
+                .arg(&exe_path)
+                .status();
+
+            match compile_status {
+                Ok(status) if status.success() => {}
+                Ok(status) => {
+                    eprintln!(
+                        "error: rustc compilation failed with exit code {:?}",
+                        status.code()
+                    );
+                    return ExitCode::from(1);
+                }
+                Err(err) => {
+                    eprintln!("error: could not run rustc: {}", err);
+                    return ExitCode::from(2);
+                }
+            }
+
+            let exec_status = Command::new(&exe_path).status();
+
+            match exec_status {
+                Ok(status) => match status.code() {
+                    Some(code) => {
+                        #[cfg(windows)]
+                        {
+                            return ExitCode::from(code as u8);
+                        }
+                        #[cfg(not(windows))]
+                        {
+                            return ExitCode::from(code);
+                        }
+                    }
+                    None => ExitCode::FAILURE,
+                },
+                Err(err) => {
+                    eprintln!("error: could not run `{}`: {}", exe_path, err);
                     ExitCode::from(2)
                 }
             }
@@ -278,6 +374,7 @@ fn print_usage() {
     eprintln!("      --format json       Always emit a JSON array to stdout ([] on success)");
     eprintln!("      --json              Alias for `--format json`");
     eprintln!("  agent build <file.ag>   Compile a source file to Rust (.rs)");
+    eprintln!("  agent run <file.ag>     Compile and execute a source file");
     eprintln!("  agent bench [dir]       Run the self-repair benchmark suite");
     eprintln!("      --repairer oracle|none|command  Repairer to use (default: oracle)");
     eprintln!("      --repair-cmd <cmd>  Shell command for `--repairer command`");
