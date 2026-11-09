@@ -9,11 +9,12 @@ pub mod codegen;
 pub mod diagnostic;
 pub mod lexer;
 pub mod parser;
+pub mod rt;
 pub mod typecheck;
 pub mod types;
 
-use diagnostic::Diagnostic;
 use ast::Module;
+use diagnostic::Diagnostic;
 
 /// Run the full front-end on a source string.
 ///

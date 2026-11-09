@@ -50,6 +50,65 @@ impl Codegen {
 
     /// Lower an entire module to Rust source.
     pub fn lower_module(&mut self, module: &Module) {
+        // Emit AgentLang runtime prelude first.
+        self.writeln("// --- AgentLang runtime prelude ---");
+        self.writeln("use std::collections::HashMap;");
+        self.writeln("");
+        self.writeln("/// Bounds-checked read of a `Vec<T>` using an `i32` index.");
+        self.writeln("/// Panics with an AgentLang-style message if the index is out of bounds.");
+        self.writeln("pub fn al_index<T>(arr: &Vec<T>, idx: i32) -> &T {");
+        self.indent += 1;
+        self.writeln("if idx < 0 || idx as usize >= arr.len() {");
+        self.indent += 1;
+        self.writeln(
+            "panic!(\"AgentLang: index out of bounds: {} (length: {})\", idx, arr.len());",
+        );
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("&arr[idx as usize]");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Bounds-checked mutable read of a `Vec<T>` using an `i32` index.");
+        self.writeln("pub fn al_index_mut<T>(arr: &mut Vec<T>, idx: i32) -> &mut T {");
+        self.indent += 1;
+        self.writeln("if idx < 0 || idx as usize >= arr.len() {");
+        self.indent += 1;
+        self.writeln(
+            "panic!(\"AgentLang: index out of bounds: {} (length: {})\", idx, arr.len());",
+        );
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("&mut arr[idx as usize]");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Look up a key in a `HashMap<K, V>`. Returns `None` if absent.");
+        self.writeln(
+            "pub fn al_map_get<'a, K, V>(map: &'a HashMap<K, V>, key: &K) -> Option<&'a V>",
+        );
+        self.writeln("where");
+        self.writeln("    K: std::cmp::Eq + std::hash::Hash,");
+        self.writeln("{");
+        self.indent += 1;
+        self.writeln("map.get(key)");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("/// Insert a key-value pair into a `HashMap<K, V>`.");
+        self.writeln(
+            "pub fn al_map_insert<K, V>(map: &mut HashMap<K, V>, key: K, val: V) -> Option<V>",
+        );
+        self.writeln("where");
+        self.writeln("    K: std::cmp::Eq + std::hash::Hash,");
+        self.writeln("{");
+        self.indent += 1;
+        self.writeln("map.insert(key, val)");
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("");
+
         // Emit type aliases first so they're available for later items.
         for alias in &module.type_aliases {
             let rust_ty = self.type_expr_to_rust(&alias.ty);
@@ -76,6 +135,7 @@ impl Codegen {
     }
 
     fn lower_struct(&mut self, decl: &StructDecl) {
+        self.writeln("#[derive(Clone, Debug)]");
         self.writeln(&format!("struct {} {{", decl.name));
         self.indent += 1;
         for field in &decl.fields {
@@ -88,6 +148,7 @@ impl Codegen {
     }
 
     fn lower_enum(&mut self, decl: &EnumDecl) {
+        self.writeln("#[derive(Clone, Debug)]");
         self.writeln(&format!("enum {} {{", decl.name));
         self.indent += 1;
         for variant in &decl.variants {
@@ -159,10 +220,30 @@ impl Codegen {
                 let val = self.expr_to_rust(value);
                 self.writeln(&format!("let {}{} = {};", mut_kw, name, val));
             }
-            Stmt::Assign { target, value, span: _ } => {
-                let tgt = self.expr_to_rust(target);
+            Stmt::Assign {
+                target,
+                value,
+                span: _,
+            } => {
                 let val = self.expr_to_rust(value);
-                self.writeln(&format!("{} = {};", tgt, val));
+                match &**target {
+                    Expr::Index {
+                        object,
+                        index,
+                        span: _,
+                    } => {
+                        let obj = self.expr_to_rust(object);
+                        let idx = self.expr_to_rust(index);
+                        self.writeln(&format!(
+                            "*al_index_mut(&mut {}, {} as i32) = {};",
+                            obj, idx, val
+                        ));
+                    }
+                    _ => {
+                        let tgt = self.expr_to_rust(target);
+                        self.writeln(&format!("{} = {};", tgt, val));
+                    }
+                }
             }
             Stmt::Return { value, span: _ } => match value {
                 Some(expr) => {
@@ -178,7 +259,7 @@ impl Codegen {
                 None => {
                     self.writeln("return;");
                 }
-            }
+            },
             Stmt::If {
                 cond,
                 then_body,
@@ -325,21 +406,13 @@ impl Codegen {
                 variant,
                 payload,
                 ..
-            } => {
-                match payload {
-                    Some(args) => {
-                        let arg_strs: Vec<String> =
-                            args.iter().map(|a| self.expr_to_rust(a)).collect();
-                        format!(
-                            "{}::{} ({})",
-                            enum_name,
-                            variant,
-                            arg_strs.join(", ")
-                        )
-                    }
-                    None => format!("{}::{}", enum_name, variant),
+            } => match payload {
+                Some(args) => {
+                    let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_rust(a)).collect();
+                    format!("{}::{} ({})", enum_name, variant, arg_strs.join(", "))
                 }
-            }
+                None => format!("{}::{}", enum_name, variant),
+            },
             Expr::MethodCall {
                 receiver,
                 method,
@@ -359,9 +432,7 @@ impl Codegen {
                 format!("|{}| {}", param, b)
             }
             Expr::Match {
-                scrutinee,
-                arms,
-                ..
+                scrutinee, arms, ..
             } => {
                 let scrutinee_str = self.expr_to_rust(scrutinee);
                 let mut arm_strs = Vec::new();
@@ -370,16 +441,12 @@ impl Codegen {
                     let body_str = self.expr_to_rust(&arm.body);
                     arm_strs.push(format!("{} => {}", pat_str, body_str));
                 }
-                format!(
-                    "match {} {{ {} }}",
-                    scrutinee_str,
-                    arm_strs.join(", ")
-                )
+                format!("match {} {{ {} }}", scrutinee_str, arm_strs.join(", "))
             }
             Expr::Index { object, index, .. } => {
                 let obj = self.expr_to_rust(object);
                 let idx = self.expr_to_rust(index);
-                format!("{}[{}]", obj, idx)
+                format!("*al_index(&{}, {} as i32)", obj, idx)
             }
             Expr::Group(inner) => {
                 let e = self.expr_to_rust(inner);
@@ -429,40 +496,46 @@ impl Codegen {
 
     fn type_expr_to_rust(&self, ty: &TypeExpr) -> String {
         match ty.name.as_str() {
-            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-            | "f32" | "f64" | "Bool" | "String" | "Char" => ty.name.clone(),
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
+            | "Bool" | "String" | "Char" => ty.name.clone(),
             "Unit" => "()".to_string(),
             "Array" => {
-                let inner = ty.args
+                let inner = ty
+                    .args
                     .first()
                     .map(|a| self.type_expr_to_rust(a))
                     .unwrap_or_else(|| "Unknown".to_string());
                 format!("Vec<{}>", inner)
             }
             "Map" => {
-                let k = ty.args
+                let k = ty
+                    .args
                     .first()
                     .map(|a| self.type_expr_to_rust(a))
                     .unwrap_or_else(|| "Unknown".to_string());
-                let v = ty.args
+                let v = ty
+                    .args
                     .get(1)
                     .map(|a| self.type_expr_to_rust(a))
                     .unwrap_or_else(|| "Unknown".to_string());
                 format!("std::collections::HashMap<{}, {}>", k, v)
             }
             "Option" => {
-                let inner = ty.args
+                let inner = ty
+                    .args
                     .first()
                     .map(|a| self.type_expr_to_rust(a))
                     .unwrap_or_else(|| "Unknown".to_string());
                 format!("Option<{}>", inner)
             }
             "Result" => {
-                let ok = ty.args
+                let ok = ty
+                    .args
                     .first()
                     .map(|a| self.type_expr_to_rust(a))
                     .unwrap_or_else(|| "Unknown".to_string());
-                let err = ty.args
+                let err = ty
+                    .args
                     .get(1)
                     .map(|a| self.type_expr_to_rust(a))
                     .unwrap_or_else(|| "Unknown".to_string());
@@ -503,7 +576,12 @@ impl Codegen {
 
     fn float_to_rust(&self, v: f64) -> String {
         let s = v.to_string();
-        if !s.contains('.') && !s.contains('e') && !s.contains('E') && !s.contains("inf") && !s.contains("nan") {
+        if !s.contains('.')
+            && !s.contains('e')
+            && !s.contains('E')
+            && !s.contains("inf")
+            && !s.contains("nan")
+        {
             format!("{}.0", s)
         } else {
             s
