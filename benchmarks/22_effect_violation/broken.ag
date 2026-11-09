@@ -1,0 +1,7 @@
+function read_db() -> i32 effects(db.read) {
+    return 42;
+}
+
+function main() -> i32 {
+    return read_db();
+}

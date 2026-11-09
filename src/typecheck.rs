@@ -15,6 +15,7 @@ use crate::types::Ty;
 struct FuncSig {
     params: Vec<Ty>,
     ret: Ty,
+    effects: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -34,6 +35,10 @@ pub struct TypeChecker<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     /// Return type of the function currently being checked (for `?`).
     current_return: Ty,
+    /// Effects declared on the function currently being checked.
+    current_effects: Vec<String>,
+    /// Name of the function currently being checked (for diagnostics).
+    current_function: String,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -46,6 +51,8 @@ impl<'a> TypeChecker<'a> {
             type_aliases: HashMap::new(),
             scopes: Vec::new(),
             current_return: Ty::Unknown,
+            current_effects: Vec::new(),
+            current_function: String::new(),
         }
     }
 
@@ -169,8 +176,14 @@ impl<'a> TypeChecker<'a> {
                 .map(|p| self.resolve_type(&p.ty))
                 .collect();
             let ret = self.resolve_type(&function.return_type);
-            self.functions
-                .insert(function.name.clone(), FuncSig { params, ret });
+            self.functions.insert(
+                function.name.clone(),
+                FuncSig {
+                    params,
+                    ret,
+                    effects: function.effects.clone(),
+                },
+            );
         }
 
         for function in &module.functions {
@@ -198,6 +211,8 @@ impl<'a> TypeChecker<'a> {
 
             let ret_ty = self.resolve_type(&function.return_type);
             self.current_return = ret_ty.clone();
+            self.current_effects = function.effects.clone();
+            self.current_function = function.name.clone();
             for stmt in &function.body {
                 self.check_stmt(stmt, &ret_ty, &mut diags);
             }
@@ -1366,6 +1381,35 @@ impl<'a> TypeChecker<'a> {
                     ),
                 );
             }
+        }
+
+        // Effect enforcement: the callee's declared effects must be a subset of
+        // the caller's declared effects.
+        let missing: Vec<&str> = sig
+            .effects
+            .iter()
+            .filter(|eff| !self.current_effects.iter().any(|ce| ce == *eff))
+            .map(|eff| eff.as_str())
+            .collect();
+        if !missing.is_empty() {
+            let missing_list = missing
+                .iter()
+                .map(|eff| format!("`{}`", eff))
+                .collect::<Vec<_>>()
+                .join(", ");
+            diags.push(
+                Diagnostic::error(
+                    "EFFECT_VIOLATION",
+                    self.file,
+                    span,
+                    &format!(
+                        "Function `{}` may not call `{}`: effect(s) {} are not declared",
+                        self.current_function, callee, missing_list
+                    ),
+                )
+                .with_symbol(callee)
+                .with_repair("add_effect", Some(callee), Some(&missing.join(", "))),
+            );
         }
 
         sig.ret

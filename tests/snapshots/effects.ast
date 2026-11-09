@@ -1,0 +1,195 @@
+Module {
+    structs: [],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "read_db",
+            params: [],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 1,
+                    col: 23,
+                },
+            },
+            effects: [
+                "db.read",
+            ],
+            body: [
+                Return {
+                    value: Some(
+                        Integer(
+                            42,
+                            Span {
+                                line: 2,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 2,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "write_db",
+            params: [
+                Param {
+                    name: "value",
+                    ty: TypeExpr {
+                        name: "i32",
+                        args: [],
+                        span: Span {
+                            line: 5,
+                            col: 26,
+                        },
+                    },
+                    span: Span {
+                        line: 5,
+                        col: 19,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "Unit",
+                args: [],
+                span: Span {
+                    line: 5,
+                    col: 34,
+                },
+            },
+            effects: [
+                "db.write",
+            ],
+            body: [
+                Return {
+                    value: None,
+                    span: Span {
+                        line: 6,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 5,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "safe_read",
+            params: [],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 9,
+                    col: 25,
+                },
+            },
+            effects: [
+                "db.read",
+            ],
+            body: [
+                Return {
+                    value: Some(
+                        Call {
+                            callee: "read_db",
+                            args: [],
+                            span: Span {
+                                line: 10,
+                                col: 19,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 10,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 9,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "main",
+            params: [],
+            return_type: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 13,
+                    col: 20,
+                },
+            },
+            effects: [
+                "db.read",
+                "db.write",
+            ],
+            body: [
+                Let {
+                    name: "x",
+                    mutable: false,
+                    value: Call {
+                        callee: "read_db",
+                        args: [],
+                        span: Span {
+                            line: 14,
+                            col: 20,
+                        },
+                    },
+                    span: Span {
+                        line: 14,
+                        col: 5,
+                    },
+                },
+                Expr(
+                    Call {
+                        callee: "write_db",
+                        args: [
+                            Ident(
+                                "x",
+                                Span {
+                                    line: 15,
+                                    col: 14,
+                                },
+                            ),
+                        ],
+                        span: Span {
+                            line: 15,
+                            col: 13,
+                        },
+                    },
+                ),
+                Return {
+                    value: Some(
+                        Ident(
+                            "x",
+                            Span {
+                                line: 16,
+                                col: 12,
+                            },
+                        ),
+                    ),
+                    span: Span {
+                        line: 16,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 13,
+                col: 1,
+            },
+        },
+    ],
+    type_aliases: [],
+}

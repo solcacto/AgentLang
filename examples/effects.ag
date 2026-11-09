@@ -1,0 +1,17 @@
+function read_db() -> i32 effects(db.read) {
+    return 42;
+}
+
+function write_db(value: i32) -> Unit effects(db.write) {
+    return;
+}
+
+function safe_read() -> i32 effects(db.read) {
+    return read_db();
+}
+
+function main() -> i32 effects(db.read, db.write) {
+    let x = read_db();
+    write_db(x);
+    return x;
+}

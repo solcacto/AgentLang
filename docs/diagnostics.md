@@ -68,7 +68,7 @@ format or parsing prose.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | Repair category (`replace_expression`, `add_import`, `declare_symbol`, `insert_return`, `add_field`, `add_mut`, `rename_symbol`) |
+| `type` | string | Repair category (`replace_expression`, `add_import`, `declare_symbol`, `insert_return`, `add_field`, `add_mut`, `add_effect`, `rename_symbol`) |
 | `target` | string? | Symbol/expression to modify |
 | `expected_type` | string? | Type the repair should produce |
 
@@ -93,6 +93,7 @@ format or parsing prose.
 | `IMMUTABLE_ASSIGNMENT` | Assignment to a binding not declared with `let mut` (covers variables, struct fields, and index targets) |
 | `NOT_INDEXABLE` | Indexing a type that is not an `Array` or `Map` |
 | `NOT_ITERABLE` | `for` loop over a type that is not an `Array` or `Map` |
+| `EFFECT_VIOLATION` | Calling a function whose declared effects are not a subset of the caller's effects |
 | `UNKNOWN_METHOD` | Method does not exist on the receiver type |
 | `INVALID_TRY` | `?` used outside a matching `Option`/`Result` context |
 | `TRY_TYPE_MISMATCH` | `?` propagates a different error type than the function returns |

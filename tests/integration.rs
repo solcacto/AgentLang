@@ -1473,3 +1473,83 @@ function main() -> i32 {
         diags
     );
 }
+
+#[test]
+fn effect_enforcement_clean() {
+    let src = r#"
+function read_db() -> i32 effects(db.read) {
+    return 42;
+}
+
+function safe_read() -> i32 effects(db.read) {
+    return read_db();
+}
+
+function main() -> i32 effects(db.read) {
+    return safe_read();
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn effect_violation_reported() {
+    let src = r#"
+function read_db() -> i32 effects(db.read) {
+    return 42;
+}
+
+function unsafe_read() -> i32 {
+    return read_db();
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "EFFECT_VIOLATION" && d.symbol.as_deref() == Some("read_db")),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn effect_subset_allowed() {
+    let src = r#"
+function read_db() -> i32 effects(db.read) {
+    return 42;
+}
+
+function caller() -> i32 effects(db.read, db.write) {
+    return read_db();
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn effect_repair_has_add_effect() {
+    let src = r#"
+function read_db() -> i32 effects(db.read) {
+    return 42;
+}
+
+function bad() -> i32 {
+    return read_db();
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| {
+            d.code == "EFFECT_VIOLATION"
+                && d.repair
+                    .as_ref()
+                    .map(|r| r.kind == "add_effect")
+                    .unwrap_or(false)
+        }),
+        "got {:?}",
+        diags
+    );
+}

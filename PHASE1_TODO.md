@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, `if`/`else`, `let mut` assignment, `while` loops, `for` loops, array/map indexing, field/index mutation, and type aliases — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
+> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, `if`/`else`, `let mut` assignment, `while` loops, `for` loops, array/map indexing, field/index mutation, type aliases, and effect enforcement — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -46,6 +46,7 @@
 - [x] Parse `for name in iterable { ... }` loops and `expr[index]` indexing
 - [x] Parse assignment targets: variables, struct fields (`point.x`), and index expressions (`items[0]`)
 - [x] Parse `type Name = TypeExpr;` type alias declarations
+- [x] Parse `effects(...)` clauses on function declarations (already lexed/parsed)
 - [x] Error recovery: report a diagnostic and recover to the next declaration/statement
 - [x] Snapshot tests: source → AST (`tests/snapshots/`, see `tests/ast_snapshots.rs`)
 
@@ -63,6 +64,7 @@
 - [x] Type-check `for` (`NOT_ITERABLE`; binds element/key type) and indexing (`NOT_INDEXABLE`; `i32` for arrays, `K` for maps)
 - [x] Type-check field and index mutation; require the root binding to be `let mut` (`IMMUTABLE_ASSIGNMENT`)
 - [x] Type-check type aliases (`type Name = TypeExpr;`), resolving them lazily with cycle detection
+- [x] Enforce effect discipline: a function may only call callees whose effects are a subset of its own declared effects (`EFFECT_VIOLATION` with `add_effect` repair)
 - [x] Detect undefined symbols and duplicate declarations
 - [x] Unit tests: accept valid programs, reject invalid ones with correct error codes
 
@@ -119,13 +121,13 @@
 
 ## Baseline (recorded 2026-11-09)
 
-`agent bench benchmarks` over twenty-one tasks (`benchmarks/01_ok_baseline` … `21_duplicate_type_alias`):
+`agent bench benchmarks` over twenty-three tasks (`benchmarks/01_ok_baseline` … `23_effect_subset_violation`):
 
 | Metric | Value |
 | --- | --- |
-| Tasks | 21 |
-| First-pass clean | 1 / 21 (the intentional baseline task) |
-| Resolved with oracle repair | 21 / 21 |
+| Tasks | 23 |
+| First-pass clean | 1 / 23 (the intentional baseline task) |
+| Resolved with oracle repair | 23 / 23 |
 | Mean repair iterations (non-clean tasks) | 1.0 |
 | Remaining unresolved | 0 |
 

@@ -77,6 +77,9 @@ cargo run -- check examples/mutation.ag
 # Type aliases
 cargo run -- check examples/type_aliases.ag
 
+# Effect enforcement
+cargo run -- check examples/effects.ag
+
 # Machine mode: always emit a JSON array (empty `[]` on success)
 cargo run -- check --format json examples/hello.ag
 cargo run -- check --json examples/bad.ag
@@ -103,7 +106,7 @@ exhaustiveness checking), `if` / `else if` / `else` statements, `let mut`
 bindings with assignment, and `while` loops — all with block scoping and
 return-path checking. `for name in iterable { ... }` loops iterate over
 `Array<T>` (binding `T`) and `Map<K, V>` (binding `K`); `expr[index]` indexes
-arrays with `i32` and maps with `K`. Assignment targets may be variables, struct fields (`point.x`), or index expressions (`items[0]`); the root binding must be declared with `let mut`. `type Name = TypeExpr;` declares a type alias that resolves to its underlying type everywhere it is used.
+arrays with `i32` and maps with `K`. Assignment targets may be variables, struct fields (`point.x`), or index expressions (`items[0]`); the root binding must be declared with `let mut`. `type Name = TypeExpr;` declares a type alias that resolves to its underlying type everywhere it is used. Function `effects(...)` clauses are enforced: a function may only call callees whose effects are a subset of its own declared effects.
 
 Example diagnostic output:
 
