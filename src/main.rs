@@ -122,12 +122,53 @@ fn check(args: &[String]) -> ExitCode {
 }
 
 fn build(args: &[String]) -> ExitCode {
-    let file = args.get(2).map(|s| s.as_str()).unwrap_or("<none>");
-    println!(
-        "build: not yet implemented (Phase 1 stub). Target: {}",
-        file
-    );
-    ExitCode::SUCCESS
+    let file = match args.get(2) {
+        Some(f) => f.as_str(),
+        None => {
+            eprintln!("error: `agent build` requires a file path");
+            return ExitCode::from(2);
+        }
+    };
+
+    let source = match fs::read_to_string(file) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("error: could not read `{}`: {}", file, err);
+            return ExitCode::from(2);
+        }
+    };
+
+    match agentlang::check_and_lower(&source, file) {
+        Ok(module) => {
+            let mut codegen = agentlang::codegen::Codegen::new();
+            codegen.lower_module(&module);
+            let rust_source = codegen.into_output();
+
+            let out_path = if let Some(stem) = file.strip_suffix(".ag") {
+                format!("{}.rs", stem)
+            } else {
+                format!("{}.rs", file)
+            };
+
+            match fs::write(&out_path, &rust_source) {
+                Ok(_) => {
+                    println!("build: wrote {}", out_path);
+                    ExitCode::SUCCESS
+                }
+                Err(err) => {
+                    eprintln!("error: could not write `{}`: {}", out_path, err);
+                    ExitCode::from(2)
+                }
+            }
+        }
+        Err(diags) => {
+            match serde_json::to_string_pretty(&diags) {
+                Ok(rendered) => println!("{}", rendered),
+                Err(err) => eprintln!("error: failed to serialize diagnostics: {}", err),
+            }
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn bench(args: &[String]) -> ExitCode {
@@ -236,7 +277,7 @@ fn print_usage() {
     eprintln!("  agent check <file.ag>   Parse and type-check a source file");
     eprintln!("      --format json       Always emit a JSON array to stdout ([] on success)");
     eprintln!("      --json              Alias for `--format json`");
-    eprintln!("  agent build <file.ag>   Compile a source file (stub in Phase 1)");
+    eprintln!("  agent build <file.ag>   Compile a source file to Rust (.rs)");
     eprintln!("  agent bench [dir]       Run the self-repair benchmark suite");
     eprintln!("      --repairer oracle|none|command  Repairer to use (default: oracle)");
     eprintln!("      --repair-cmd <cmd>  Shell command for `--repairer command`");

@@ -42,7 +42,46 @@ agent check --format json program.ag
 3. If `[]`, done. Otherwise, the agent reads the JSON array and applies fixes.
 4. Repeat until clean.
 
-## 3. Diagnostic JSON schema
+## 3. Build to Rust (`agent build`)
+
+Once a program passes `agent check`, compile it to Rust:
+
+```bash
+agent build program.ag
+```
+
+This produces `program.rs` in the same directory. Compile with `rustc`:
+
+```bash
+rustc program.rs -o program
+./program
+```
+
+### Type mapping (AgentLang → Rust)
+
+| AgentLang | Rust |
+|-----------|------|
+| `i32`, `i64`, `Bool`, `String`, etc. | Same |
+| `Array<T>` | `Vec<T>` |
+| `Map<K, V>` | `std::collections::HashMap<K, V>` |
+| `Option<T>` | `Option<T>` |
+| `Result<T, E>` | `Result<T, E>` |
+| `Unit` | `()` |
+| `struct Name { ... }` | `struct Name { ... }` |
+| `enum Name { ... }` | `enum Name { ... }` |
+| `type Name = T;` | `type Name = T;` |
+| `for x in items { ... }` | `for x in items { ... }` |
+| `items[i]` | `items[i]` (index cast to `usize`) |
+| `expr?` | `expr?` |
+
+### Limitations (Phase 2)
+
+- `main` always returns `()` in Rust; return values are discarded.
+- `?` cannot be used in `main` (use `match` on `Result`/`Option` instead).
+- Array indexing casts the index to `usize`; negative indices panic at runtime.
+- No runtime library is required; generated code uses only `std`.
+
+## 4. Diagnostic JSON schema
 
 Every diagnostic is a JSON object:
 

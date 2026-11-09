@@ -1,0 +1,540 @@
+//! Code generation: lower AgentLang AST to Rust source.
+//!
+//! Phase 2: takes a verified `Module` (already type-checked) and emits idiomatic
+//! Rust source that `rustc` can compile. Every AgentLang construct has a direct
+//! Rust equivalent, so the translation is mostly syntactic with type mapping.
+
+use crate::ast::*;
+
+/// A Rust source code generator with indentation tracking.
+pub struct Codegen {
+    output: String,
+    indent: usize,
+    in_main: bool,
+    main_returns_unit: bool,
+}
+
+impl Codegen {
+    pub fn new() -> Self {
+        Codegen {
+            output: String::new(),
+            indent: 0,
+            in_main: false,
+            main_returns_unit: true,
+        }
+    }
+
+    pub fn into_output(self) -> String {
+        self.output
+    }
+
+    fn indent_str(&self) -> String {
+        "    ".repeat(self.indent)
+    }
+
+    fn writeln(&mut self, s: &str) {
+        for line in s.lines() {
+            self.output.push_str(&self.indent_str());
+            self.output.push_str(line);
+            self.output.push('\n');
+        }
+    }
+
+    fn write(&mut self, s: &str) {
+        self.output.push_str(s);
+    }
+
+    // -----------------------------------------------------------------------
+    // Module-level items
+    // -----------------------------------------------------------------------
+
+    /// Lower an entire module to Rust source.
+    pub fn lower_module(&mut self, module: &Module) {
+        // Emit type aliases first so they're available for later items.
+        for alias in &module.type_aliases {
+            let rust_ty = self.type_expr_to_rust(&alias.ty);
+            self.writeln(&format!("type {} = {};", alias.name, rust_ty));
+        }
+        if !module.type_aliases.is_empty() {
+            self.writeln("");
+        }
+
+        // Emit structs.
+        for decl in &module.structs {
+            self.lower_struct(decl);
+        }
+
+        // Emit enums.
+        for decl in &module.enums {
+            self.lower_enum(decl);
+        }
+
+        // Emit functions.
+        for func in &module.functions {
+            self.lower_function(func);
+        }
+    }
+
+    fn lower_struct(&mut self, decl: &StructDecl) {
+        self.writeln(&format!("struct {} {{", decl.name));
+        self.indent += 1;
+        for field in &decl.fields {
+            let rust_ty = self.type_expr_to_rust(&field.ty);
+            self.writeln(&format!("pub {}: {},", field.name, rust_ty));
+        }
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+    }
+
+    fn lower_enum(&mut self, decl: &EnumDecl) {
+        self.writeln(&format!("enum {} {{", decl.name));
+        self.indent += 1;
+        for variant in &decl.variants {
+            match &variant.payload {
+                Some(ty) => {
+                    let rust_ty = self.type_expr_to_rust(ty);
+                    self.writeln(&format!("{}({}),", variant.name, rust_ty));
+                }
+                None => {
+                    self.writeln(&format!("{},", variant.name));
+                }
+            }
+        }
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+    }
+
+    fn lower_function(&mut self, func: &FunctionDecl) {
+        let params: Vec<String> = func
+            .params
+            .iter()
+            .map(|p| format!("{}: {}", p.name, self.type_expr_to_rust(&p.ty)))
+            .collect();
+
+        // Rust's main must return () or Termination. Result<T, E> only
+        // implements Termination when T = (), so lower main's return to ().
+        // AgentLang return values from main are discarded.
+        let is_main = func.name == "main";
+        let prev_in_main = self.in_main;
+        let prev_main_returns_unit = self.main_returns_unit;
+        self.in_main = is_main;
+        self.main_returns_unit = true;
+        let ret_ty = if is_main {
+            "()".to_string()
+        } else {
+            self.type_expr_to_rust(&func.return_type)
+        };
+        self.writeln(&format!(
+            "fn {}({}) -> {} {{",
+            func.name,
+            params.join(", "),
+            ret_ty
+        ));
+        self.indent += 1;
+        for stmt in &func.body {
+            self.lower_stmt(stmt);
+        }
+        self.indent -= 1;
+        self.writeln("}");
+        self.writeln("");
+        self.in_main = prev_in_main;
+        self.main_returns_unit = prev_main_returns_unit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Statements
+    // -----------------------------------------------------------------------
+
+    fn lower_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Let {
+                name,
+                mutable,
+                value,
+                span: _,
+            } => {
+                let mut_kw = if *mutable { "mut " } else { "" };
+                let val = self.expr_to_rust(value);
+                self.writeln(&format!("let {}{} = {};", mut_kw, name, val));
+            }
+            Stmt::Assign { target, value, span: _ } => {
+                let tgt = self.expr_to_rust(target);
+                let val = self.expr_to_rust(value);
+                self.writeln(&format!("{} = {};", tgt, val));
+            }
+            Stmt::Return { value, span: _ } => match value {
+                Some(expr) => {
+                    if self.in_main && self.main_returns_unit {
+                        // Rust main returns (); discard the returned value.
+                        let e = self.expr_to_rust(expr);
+                        self.writeln(&format!("{{ let _ = {}; return; }}", e));
+                    } else {
+                        let val = self.expr_to_rust(expr);
+                        self.writeln(&format!("return {};", val));
+                    }
+                }
+                None => {
+                    self.writeln("return;");
+                }
+            }
+            Stmt::If {
+                cond,
+                then_body,
+                else_body,
+                span: _,
+            } => {
+                self.lower_if(cond, then_body, else_body);
+            }
+            Stmt::While {
+                cond,
+                body,
+                span: _,
+            } => {
+                let c = self.expr_to_rust(cond);
+                self.writeln(&format!("while {} {{", c));
+                self.indent += 1;
+                for stmt in body {
+                    self.lower_stmt(stmt);
+                }
+                self.indent -= 1;
+                self.writeln("}");
+            }
+            Stmt::For {
+                name,
+                iterable,
+                body,
+                span: _,
+            } => {
+                let iter = self.expr_to_rust(iterable);
+                self.writeln(&format!("for {} in {} {{", name, iter));
+                self.indent += 1;
+                for stmt in body {
+                    self.lower_stmt(stmt);
+                }
+                self.indent -= 1;
+                self.writeln("}");
+            }
+            Stmt::Expr(expr) => {
+                let e = self.expr_to_rust(expr);
+                self.writeln(&format!("{};", e));
+            }
+        }
+    }
+
+    fn lower_if(&mut self, cond: &Expr, then_body: &[Stmt], else_body: &Option<Vec<Stmt>>) {
+        let c = self.expr_to_rust(cond);
+        self.writeln(&format!("if {} {{", c));
+        self.indent += 1;
+        for stmt in then_body {
+            self.lower_stmt(stmt);
+        }
+        self.indent -= 1;
+        self.lower_else_tail(else_body);
+    }
+
+    fn lower_else_tail(&mut self, else_body: &Option<Vec<Stmt>>) {
+        match else_body {
+            Some(body) => {
+                if body.len() == 1 {
+                    if let Stmt::If {
+                        cond,
+                        then_body,
+                        else_body,
+                        ..
+                    } = &body[0]
+                    {
+                        let cond_str = self.expr_to_rust(cond);
+                        self.write(&format!("}} else if {} {{", cond_str));
+                        self.indent += 1;
+                        for stmt in then_body {
+                            self.lower_stmt(stmt);
+                        }
+                        self.indent -= 1;
+                        self.lower_else_tail(else_body);
+                    } else {
+                        self.writeln("}");
+                        self.writeln("else {");
+                        self.indent += 1;
+                        for stmt in body {
+                            self.lower_stmt(stmt);
+                        }
+                        self.indent -= 1;
+                        self.writeln("}");
+                    }
+                } else {
+                    self.writeln("}");
+                    self.writeln("else {");
+                    self.indent += 1;
+                    for stmt in body {
+                        self.lower_stmt(stmt);
+                    }
+                    self.indent -= 1;
+                    self.writeln("}");
+                }
+            }
+            None => {
+                self.writeln("}");
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Expressions
+    // -----------------------------------------------------------------------
+
+    fn expr_to_rust(&mut self, expr: &Expr) -> String {
+        match expr {
+            Expr::Integer(v, _) => v.to_string(),
+            Expr::Float(v, _) => self.float_to_rust(*v),
+            Expr::Bool(b, _) => b.to_string(),
+            Expr::StringLit(s, _) => self.string_lit_to_rust(s),
+            Expr::CharLit(c, _) => self.char_lit_to_rust(*c),
+            Expr::Ident(n, _) => n.clone(),
+            Expr::Binary {
+                op, left, right, ..
+            } => {
+                let l = self.expr_to_rust(left);
+                let r = self.expr_to_rust(right);
+                let op_str = self.binop_to_rust(*op);
+                format!("{} {} {}", l, op_str, r)
+            }
+            Expr::Unary { op, expr, .. } => {
+                let e = self.expr_to_rust(expr);
+                let op_str = self.unop_to_rust(*op);
+                format!("{}{}", op_str, e)
+            }
+            Expr::Call { callee, args, .. } => {
+                let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_rust(a)).collect();
+                format!("{}({})", callee, arg_strs.join(", "))
+            }
+            Expr::Member { object, field, .. } => {
+                let obj = self.expr_to_rust(object);
+                format!("{}.{}", obj, field)
+            }
+            Expr::StructLit { name, fields, .. } => {
+                let field_strs: Vec<String> = fields
+                    .iter()
+                    .map(|(fname, fval)| format!("{}: {}", fname, self.expr_to_rust(fval)))
+                    .collect();
+                format!("{} {{ {} }}", name, field_strs.join(", "))
+            }
+            Expr::Variant {
+                enum_name,
+                variant,
+                payload,
+                ..
+            } => {
+                match payload {
+                    Some(args) => {
+                        let arg_strs: Vec<String> =
+                            args.iter().map(|a| self.expr_to_rust(a)).collect();
+                        format!(
+                            "{}::{} ({})",
+                            enum_name,
+                            variant,
+                            arg_strs.join(", ")
+                        )
+                    }
+                    None => format!("{}::{}", enum_name, variant),
+                }
+            }
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                ..
+            } => {
+                let recv = self.expr_to_rust(receiver);
+                let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_rust(a)).collect();
+                format!("{}.{}({})", recv, method, arg_strs.join(", "))
+            }
+            Expr::Try { expr, .. } => {
+                let e = self.expr_to_rust(expr);
+                format!("{}?", e)
+            }
+            Expr::Lambda { param, body, .. } => {
+                let b = self.expr_to_rust(body);
+                format!("|{}| {}", param, b)
+            }
+            Expr::Match {
+                scrutinee,
+                arms,
+                ..
+            } => {
+                let scrutinee_str = self.expr_to_rust(scrutinee);
+                let mut arm_strs = Vec::new();
+                for arm in arms {
+                    let pat_str = self.pattern_to_rust(&arm.pattern);
+                    let body_str = self.expr_to_rust(&arm.body);
+                    arm_strs.push(format!("{} => {}", pat_str, body_str));
+                }
+                format!(
+                    "match {} {{ {} }}",
+                    scrutinee_str,
+                    arm_strs.join(", ")
+                )
+            }
+            Expr::Index { object, index, .. } => {
+                let obj = self.expr_to_rust(object);
+                let idx = self.expr_to_rust(index);
+                format!("{}[{}]", obj, idx)
+            }
+            Expr::Group(inner) => {
+                let e = self.expr_to_rust(inner);
+                format!("({})", e)
+            }
+        }
+    }
+
+    fn pattern_to_rust(&self, pattern: &Pattern) -> String {
+        match pattern {
+            Pattern::Wildcard { .. } => "_".to_string(),
+            Pattern::Variant {
+                enum_name,
+                variant,
+                has_parens,
+                binding,
+                ..
+            } => {
+                let qualified = match enum_name {
+                    Some(en) => format!("{}::", en),
+                    None => String::new(),
+                };
+                match binding {
+                    Some(name) if name == "_" => {
+                        if *has_parens {
+                            format!("{}_({})", qualified, variant)
+                        } else {
+                            format!("{}_{}", qualified, variant)
+                        }
+                    }
+                    Some(name) => {
+                        if *has_parens {
+                            format!("{}{}({})", qualified, variant, name)
+                        } else {
+                            format!("{} {}", qualified, variant)
+                        }
+                    }
+                    None => format!("{}{}", qualified, variant),
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Type expressions
+    // -----------------------------------------------------------------------
+
+    fn type_expr_to_rust(&self, ty: &TypeExpr) -> String {
+        match ty.name.as_str() {
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+            | "f32" | "f64" | "Bool" | "String" | "Char" => ty.name.clone(),
+            "Unit" => "()".to_string(),
+            "Array" => {
+                let inner = ty.args
+                    .first()
+                    .map(|a| self.type_expr_to_rust(a))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                format!("Vec<{}>", inner)
+            }
+            "Map" => {
+                let k = ty.args
+                    .first()
+                    .map(|a| self.type_expr_to_rust(a))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let v = ty.args
+                    .get(1)
+                    .map(|a| self.type_expr_to_rust(a))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                format!("std::collections::HashMap<{}, {}>", k, v)
+            }
+            "Option" => {
+                let inner = ty.args
+                    .first()
+                    .map(|a| self.type_expr_to_rust(a))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                format!("Option<{}>", inner)
+            }
+            "Result" => {
+                let ok = ty.args
+                    .first()
+                    .map(|a| self.type_expr_to_rust(a))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let err = ty.args
+                    .get(1)
+                    .map(|a| self.type_expr_to_rust(a))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                format!("Result<{}, {}>", ok, err)
+            }
+            _ => ty.name.clone(), // user-defined type
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    fn binop_to_rust(&self, op: BinOp) -> &'static str {
+        match op {
+            BinOp::Add => "+",
+            BinOp::Sub => "-",
+            BinOp::Mul => "*",
+            BinOp::Div => "/",
+            BinOp::Rem => "%",
+            BinOp::Eq => "==",
+            BinOp::Ne => "!=",
+            BinOp::Lt => "<",
+            BinOp::Le => "<=",
+            BinOp::Gt => ">",
+            BinOp::Ge => ">=",
+            BinOp::And => "&&",
+            BinOp::Or => "||",
+        }
+    }
+
+    fn unop_to_rust(&self, op: UnOp) -> &'static str {
+        match op {
+            UnOp::Neg => "-",
+            UnOp::Not => "!",
+        }
+    }
+
+    fn float_to_rust(&self, v: f64) -> String {
+        let s = v.to_string();
+        if !s.contains('.') && !s.contains('e') && !s.contains('E') && !s.contains("inf") && !s.contains("nan") {
+            format!("{}.0", s)
+        } else {
+            s
+        }
+    }
+
+    fn string_lit_to_rust(&self, s: &str) -> String {
+        let mut out = String::from("String::from(\"");
+        for c in s.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\t' => out.push_str("\\t"),
+                c if c.is_control() => out.push_str(&format!("\\{:03o}", c as u32)),
+                c => out.push(c),
+            }
+        }
+        out.push('\"');
+        out.push(')');
+        out
+    }
+
+    fn char_lit_to_rust(&self, c: char) -> String {
+        format!("'{}'", c)
+    }
+}
+
+impl Default for Codegen {
+    fn default() -> Self {
+        Self::new()
+    }
+}

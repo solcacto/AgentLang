@@ -1,1 +1,9 @@
-/target
+# Compiled artifacts
+*.pdb
+*.exe
+
+# Rust build output
+target/
+
+# Benchmark scratch directories
+agentlang-bench-*
