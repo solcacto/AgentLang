@@ -404,4 +404,5 @@ Module {
             },
         },
     ],
+    type_aliases: [],
 }

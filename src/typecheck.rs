@@ -29,6 +29,8 @@ pub struct TypeChecker<'a> {
     structs: HashMap<String, HashMap<String, Ty>>,
     /// Enum name -> (variant name -> optional payload type).
     enums: HashMap<String, HashMap<String, Option<Ty>>>,
+    /// Type alias name -> aliased type expression (resolved lazily).
+    type_aliases: HashMap<String, TypeExpr>,
     scopes: Vec<HashMap<String, Binding>>,
     /// Return type of the function currently being checked (for `?`).
     current_return: Ty,
@@ -41,6 +43,7 @@ impl<'a> TypeChecker<'a> {
             functions: HashMap::new(),
             structs: HashMap::new(),
             enums: HashMap::new(),
+            type_aliases: HashMap::new(),
             scopes: Vec::new(),
             current_return: Ty::Unknown,
         }
@@ -49,9 +52,32 @@ impl<'a> TypeChecker<'a> {
     pub fn check_module(&mut self, module: &Module) -> Vec<Diagnostic> {
         let mut diags = Vec::new();
 
+        // Register type aliases first so every later type resolution can use them.
+        for decl in &module.type_aliases {
+            if self.type_aliases.contains_key(&decl.name)
+                || self.structs.contains_key(&decl.name)
+                || self.enums.contains_key(&decl.name)
+                || self.functions.contains_key(&decl.name)
+            {
+                diags.push(
+                    Diagnostic::error(
+                        "DUPLICATE_SYMBOL",
+                        self.file,
+                        decl.span,
+                        &format!("Type `{}` is defined more than once", decl.name),
+                    )
+                    .with_symbol(&decl.name),
+                );
+            }
+            self.type_aliases.insert(decl.name.clone(), decl.ty.clone());
+        }
+
         // Register struct definitions first.
         for decl in &module.structs {
-            if self.structs.contains_key(&decl.name) || self.enums.contains_key(&decl.name) {
+            if self.structs.contains_key(&decl.name)
+                || self.enums.contains_key(&decl.name)
+                || self.type_aliases.contains_key(&decl.name)
+            {
                 diags.push(
                     Diagnostic::error(
                         "DUPLICATE_SYMBOL",
@@ -86,7 +112,10 @@ impl<'a> TypeChecker<'a> {
 
         // Register enum definitions.
         for decl in &module.enums {
-            if self.structs.contains_key(&decl.name) || self.enums.contains_key(&decl.name) {
+            if self.structs.contains_key(&decl.name)
+                || self.enums.contains_key(&decl.name)
+                || self.type_aliases.contains_key(&decl.name)
+            {
                 diags.push(
                     Diagnostic::error(
                         "DUPLICATE_SYMBOL",
@@ -121,7 +150,9 @@ impl<'a> TypeChecker<'a> {
 
         // Register function signatures first so calls can be checked in any order.
         for function in &module.functions {
-            if self.functions.contains_key(&function.name) {
+            if self.functions.contains_key(&function.name)
+                || self.type_aliases.contains_key(&function.name)
+            {
                 diags.push(
                     Diagnostic::error(
                         "DUPLICATE_SYMBOL",
@@ -199,9 +230,28 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn resolve_type(&self, ty: &TypeExpr) -> Ty {
+        self.resolve_type_inner(ty, &mut HashSet::new())
+    }
+
+    /// Resolve a type expression, expanding type aliases. `visited` tracks alias
+    /// names currently being expanded to detect and break cycles like
+    /// `type A = B; type B = A;`.
+    fn resolve_type_inner(&self, ty: &TypeExpr, visited: &mut HashSet<String>) -> Ty {
         if let Some(builtin) = Ty::from_name(&ty.name) {
             return builtin;
         }
+
+        // Expand a type alias.
+        if let Some(alias) = self.type_aliases.get(&ty.name) {
+            if !visited.insert(ty.name.clone()) {
+                // Recursive alias: break the cycle conservatively.
+                return Ty::Unknown;
+            }
+            let result = self.resolve_type_inner(alias, visited);
+            visited.remove(&ty.name);
+            return result;
+        }
+
         match ty.name.as_str() {
             "Array" => Ty::Array(Box::new(self.resolve_arg(ty, 0))),
             "Option" => Ty::Option(Box::new(self.resolve_arg(ty, 0))),

@@ -1358,3 +1358,118 @@ function main() -> i32 {
     let diags = check_source(src, "test.ag");
     assert!(!diags.is_empty(), "expected a diagnostic, got {:?}", diags);
 }
+
+#[test]
+fn type_alias_resolves_to_underlying_type() {
+    let src = r#"
+type UserId = i32;
+
+function main() -> UserId {
+    return 42;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn type_alias_mismatch_rejected() {
+    let src = r#"
+type UserId = i32;
+
+function main() -> UserId {
+    return "not a number";
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "TYPE_MISMATCH"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn type_alias_in_generic() {
+    let src = r#"
+type Id = i32;
+
+function sum(ids: Array<Id>) -> Id {
+    let mut total = 0;
+    for x in ids {
+        total = total + x;
+    }
+    return total;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn type_alias_forward_reference() {
+    let src = r#"
+type B = A;
+type A = i32;
+
+function main() -> B {
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(diags.is_empty(), "expected no diagnostics, got {:?}", diags);
+}
+
+#[test]
+fn duplicate_type_alias_rejected() {
+    let src = r#"
+type Id = i32;
+type Id = i32;
+
+function main() -> i32 {
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "DUPLICATE_SYMBOL"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn type_alias_conflicts_with_struct_rejected() {
+    let src = r#"
+struct Point { x: i32, y: i32, }
+type Point = i32;
+
+function main() -> i32 {
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "DUPLICATE_SYMBOL"),
+        "got {:?}",
+        diags
+    );
+}
+
+#[test]
+fn type_alias_conflicts_with_function_rejected() {
+    let src = r#"
+function foo() -> i32 { return 0; }
+type foo = i32;
+
+function main() -> i32 {
+    return 0;
+}
+"#;
+    let diags = check_source(src, "test.ag");
+    assert!(
+        diags.iter().any(|d| d.code == "DUPLICATE_SYMBOL"),
+        "got {:?}",
+        diags
+    );
+}

@@ -8,6 +8,7 @@ enum Decl {
     Struct(StructDecl),
     Enum(EnumDecl),
     Function(FunctionDecl),
+    TypeAlias(TypeAliasDecl),
 }
 
 pub struct Parser {
@@ -71,13 +72,16 @@ impl Parser {
         let mut structs = Vec::new();
         let mut enums = Vec::new();
         let mut functions = Vec::new();
+        let mut type_aliases = Vec::new();
 
         while !self.at(&TokenKind::Eof) {
             if !self.at(&TokenKind::Struct)
                 && !self.at(&TokenKind::Enum)
                 && !self.at(&TokenKind::Function)
+                && !self.at(&TokenKind::Type)
             {
-                let diag = self.err_here("Expected a `struct`, `enum`, or `function` declaration");
+                let diag =
+                    self.err_here("Expected a `struct`, `enum`, `type`, or `function` declaration");
                 self.diags.push(diag);
                 self.advance();
                 continue;
@@ -88,6 +92,7 @@ impl Parser {
                 Ok(Decl::Struct(decl)) => structs.push(decl),
                 Ok(Decl::Enum(decl)) => enums.push(decl),
                 Ok(Decl::Function(decl)) => functions.push(decl),
+                Ok(Decl::TypeAlias(decl)) => type_aliases.push(decl),
                 Err(diag) => {
                     self.diags.push(diag);
                     self.recover_to_next_decl();
@@ -103,6 +108,7 @@ impl Parser {
                 structs,
                 enums,
                 functions,
+                type_aliases,
             },
             std::mem::take(&mut self.diags),
         )
@@ -115,9 +121,23 @@ impl Parser {
             Ok(Decl::Enum(self.parse_enum()?))
         } else if self.at(&TokenKind::Function) {
             Ok(Decl::Function(self.parse_function()?))
+        } else if self.at(&TokenKind::Type) {
+            Ok(Decl::TypeAlias(self.parse_type_alias()?))
         } else {
-            Err(self.err_here("Expected a `struct`, `enum`, or `function` declaration"))
+            Err(self.err_here("Expected a `struct`, `enum`, `type`, or `function` declaration"))
         }
+    }
+
+    fn parse_type_alias(&mut self) -> Result<TypeAliasDecl, Diagnostic> {
+        let span = self.expect(&TokenKind::Type, "`type`")?;
+        let name = match self.advance() {
+            TokenKind::Identifier(n) => n,
+            _ => return Err(self.err_here("Expected type alias name")),
+        };
+        self.expect(&TokenKind::Assign, "`=`")?;
+        let ty = self.parse_type()?;
+        self.expect(&TokenKind::Semicolon, "`;`")?;
+        Ok(TypeAliasDecl { name, ty, span })
     }
 
     /// Skip to the next top-level declaration keyword, tracking brace depth so
@@ -128,7 +148,8 @@ impl Parser {
             if depth == 0
                 && (self.at(&TokenKind::Function)
                     || self.at(&TokenKind::Struct)
-                    || self.at(&TokenKind::Enum))
+                    || self.at(&TokenKind::Enum)
+                    || self.at(&TokenKind::Type))
             {
                 break;
             }

@@ -1,0 +1,5 @@
+type UserId = i32;
+
+function main() -> UserId {
+    return "not a number";
+}

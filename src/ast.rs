@@ -7,6 +7,7 @@ pub struct Module {
     pub structs: Vec<StructDecl>,
     pub enums: Vec<EnumDecl>,
     pub functions: Vec<FunctionDecl>,
+    pub type_aliases: Vec<TypeAliasDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,14 @@ pub struct EnumDecl {
 pub struct EnumVariant {
     pub name: String,
     pub payload: Option<TypeExpr>,
+    pub span: Span,
+}
+
+/// `type Name = TypeExpr;` — a user-defined type alias.
+#[derive(Debug, Clone)]
+pub struct TypeAliasDecl {
+    pub name: String,
+    pub ty: TypeExpr,
     pub span: Span,
 }
 

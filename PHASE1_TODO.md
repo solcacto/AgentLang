@@ -2,7 +2,7 @@
 
 > Goal: a small but fully functional compiler front-end that turns `.ag` source into a verified AST with machine-readable JSON diagnostics.
 >
-> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, `if`/`else`, `let mut` assignment, `while` loops, `for` loops, array/map indexing, and field/index mutation — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
+> **Status:** Walking skeleton is working. `agent check` lexes, parses, and type-checks functions, structs, enums, `Option`/`Result`, `?`, minimal method calls, `match`, `if`/`else`, `let mut` assignment, `while` loops, `for` loops, array/map indexing, field/index mutation, and type aliases — emitting structured JSON diagnostics. AST snapshots and a self-repair benchmark harness are in place. See `src/` and `tests/`.
 
 **Definition of done:** The `agent check` command parses and type-checks a `.ag` file, and on failure emits a structured JSON diagnostic with a repair suggestion. Success is measured by an LLM being able to read the JSON, fix the code, and re-run to a clean check — without a human reading compiler output.
 
@@ -45,6 +45,7 @@
 - [x] Parse `let mut` bindings, assignment statements, and `while` loops
 - [x] Parse `for name in iterable { ... }` loops and `expr[index]` indexing
 - [x] Parse assignment targets: variables, struct fields (`point.x`), and index expressions (`items[0]`)
+- [x] Parse `type Name = TypeExpr;` type alias declarations
 - [x] Error recovery: report a diagnostic and recover to the next declaration/statement
 - [x] Snapshot tests: source → AST (`tests/snapshots/`, see `tests/ast_snapshots.rs`)
 
@@ -61,6 +62,7 @@
 - [x] Enforce mutability on assignment (`IMMUTABLE_ASSIGNMENT`) and type-check `while` conditions
 - [x] Type-check `for` (`NOT_ITERABLE`; binds element/key type) and indexing (`NOT_INDEXABLE`; `i32` for arrays, `K` for maps)
 - [x] Type-check field and index mutation; require the root binding to be `let mut` (`IMMUTABLE_ASSIGNMENT`)
+- [x] Type-check type aliases (`type Name = TypeExpr;`), resolving them lazily with cycle detection
 - [x] Detect undefined symbols and duplicate declarations
 - [x] Unit tests: accept valid programs, reject invalid ones with correct error codes
 
@@ -117,13 +119,13 @@
 
 ## Baseline (recorded 2026-11-09)
 
-`agent bench benchmarks` over nineteen tasks (`benchmarks/01_ok_baseline` … `19_index_mutation_type_mismatch`):
+`agent bench benchmarks` over twenty-one tasks (`benchmarks/01_ok_baseline` … `21_duplicate_type_alias`):
 
 | Metric | Value |
 | --- | --- |
-| Tasks | 19 |
-| First-pass clean | 1 / 19 (the intentional baseline task) |
-| Resolved with oracle repair | 19 / 19 |
+| Tasks | 21 |
+| First-pass clean | 1 / 21 (the intentional baseline task) |
+| Resolved with oracle repair | 21 / 21 |
 | Mean repair iterations (non-clean tasks) | 1.0 |
 | Remaining unresolved | 0 |
 

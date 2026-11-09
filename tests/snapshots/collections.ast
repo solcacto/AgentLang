@@ -199,4 +199,5 @@ Module {
             },
         },
     ],
+    type_aliases: [],
 }

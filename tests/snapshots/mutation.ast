@@ -306,4 +306,5 @@ Module {
             },
         },
     ],
+    type_aliases: [],
 }

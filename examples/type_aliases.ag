@@ -1,0 +1,15 @@
+type UserId = i32;
+
+struct User {
+    id: UserId,
+    score: UserId,
+}
+
+function total(user: User) -> UserId {
+    return user.id + user.score;
+}
+
+function main() -> UserId {
+    let u = User { id: 7, score: 3 };
+    return total(u);
+}

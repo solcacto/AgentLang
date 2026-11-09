@@ -1,0 +1,221 @@
+Module {
+    structs: [
+        StructDecl {
+            name: "User",
+            fields: [
+                FieldDecl {
+                    name: "id",
+                    ty: TypeExpr {
+                        name: "UserId",
+                        args: [],
+                        span: Span {
+                            line: 4,
+                            col: 9,
+                        },
+                    },
+                    span: Span {
+                        line: 4,
+                        col: 5,
+                    },
+                },
+                FieldDecl {
+                    name: "score",
+                    ty: TypeExpr {
+                        name: "UserId",
+                        args: [],
+                        span: Span {
+                            line: 5,
+                            col: 12,
+                        },
+                    },
+                    span: Span {
+                        line: 5,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 3,
+                col: 1,
+            },
+        },
+    ],
+    enums: [],
+    functions: [
+        FunctionDecl {
+            name: "total",
+            params: [
+                Param {
+                    name: "user",
+                    ty: TypeExpr {
+                        name: "User",
+                        args: [],
+                        span: Span {
+                            line: 8,
+                            col: 22,
+                        },
+                    },
+                    span: Span {
+                        line: 8,
+                        col: 16,
+                    },
+                },
+            ],
+            return_type: TypeExpr {
+                name: "UserId",
+                args: [],
+                span: Span {
+                    line: 8,
+                    col: 31,
+                },
+            },
+            effects: [],
+            body: [
+                Return {
+                    value: Some(
+                        Binary {
+                            op: Add,
+                            left: Member {
+                                object: Ident(
+                                    "user",
+                                    Span {
+                                        line: 9,
+                                        col: 12,
+                                    },
+                                ),
+                                field: "id",
+                                span: Span {
+                                    line: 9,
+                                    col: 16,
+                                },
+                            },
+                            right: Member {
+                                object: Ident(
+                                    "user",
+                                    Span {
+                                        line: 9,
+                                        col: 22,
+                                    },
+                                ),
+                                field: "score",
+                                span: Span {
+                                    line: 9,
+                                    col: 26,
+                                },
+                            },
+                            span: Span {
+                                line: 9,
+                                col: 20,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 9,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 8,
+                col: 1,
+            },
+        },
+        FunctionDecl {
+            name: "main",
+            params: [],
+            return_type: TypeExpr {
+                name: "UserId",
+                args: [],
+                span: Span {
+                    line: 12,
+                    col: 20,
+                },
+            },
+            effects: [],
+            body: [
+                Let {
+                    name: "u",
+                    mutable: false,
+                    value: StructLit {
+                        name: "User",
+                        fields: [
+                            (
+                                "id",
+                                Integer(
+                                    7,
+                                    Span {
+                                        line: 13,
+                                        col: 24,
+                                    },
+                                ),
+                            ),
+                            (
+                                "score",
+                                Integer(
+                                    3,
+                                    Span {
+                                        line: 13,
+                                        col: 34,
+                                    },
+                                ),
+                            ),
+                        ],
+                        span: Span {
+                            line: 13,
+                            col: 13,
+                        },
+                    },
+                    span: Span {
+                        line: 13,
+                        col: 5,
+                    },
+                },
+                Return {
+                    value: Some(
+                        Call {
+                            callee: "total",
+                            args: [
+                                Ident(
+                                    "u",
+                                    Span {
+                                        line: 14,
+                                        col: 18,
+                                    },
+                                ),
+                            ],
+                            span: Span {
+                                line: 14,
+                                col: 17,
+                            },
+                        },
+                    ),
+                    span: Span {
+                        line: 14,
+                        col: 5,
+                    },
+                },
+            ],
+            span: Span {
+                line: 12,
+                col: 1,
+            },
+        },
+    ],
+    type_aliases: [
+        TypeAliasDecl {
+            name: "UserId",
+            ty: TypeExpr {
+                name: "i32",
+                args: [],
+                span: Span {
+                    line: 1,
+                    col: 15,
+                },
+            },
+            span: Span {
+                line: 1,
+                col: 1,
+            },
+        },
+    ],
+}

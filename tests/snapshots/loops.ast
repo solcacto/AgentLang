@@ -180,4 +180,5 @@ Module {
             },
         },
     ],
+    type_aliases: [],
 }

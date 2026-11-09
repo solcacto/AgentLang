@@ -1,0 +1,5 @@
+type UserId = i32;
+
+function main() -> UserId {
+    return 42;
+}

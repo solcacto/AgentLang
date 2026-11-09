@@ -49,12 +49,12 @@ Output is JSON. The command exits non-zero if any task is left unresolved.
     "repairer": "oracle",
     "max_iters": 5
   },
-  "total": 19,
+  "total": 21,
   "first_pass_ok": 1,
-  "fixed": 19,
+  "fixed": 21,
   "unresolved": 0,
   "avg_iterations": 1.0,
-  "total_diagnostics": 19
+  "total_diagnostics": 21
 }
 ```
 
@@ -153,12 +153,12 @@ and fails if the oracle cannot resolve every task.
 
 ## Baseline
 
-Recorded 2026-11-09 on the nineteen-task corpus (`01_ok_baseline` … `19_index_mutation_type_mismatch`):
+Recorded 2026-11-09 on the twenty-one-task corpus (`01_ok_baseline` … `21_duplicate_type_alias`):
 
 | Metric | Value |
 | --- | --- |
-| First-pass clean | 1 / 19 |
-| Resolved with oracle | 19 / 19 |
+| First-pass clean | 1 / 21 |
+| Resolved with oracle | 21 / 21 |
 | Mean iterations (non-clean) | 1.0 |
 | Unresolved | 0 |
 

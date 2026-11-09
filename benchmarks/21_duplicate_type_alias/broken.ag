@@ -1,0 +1,6 @@
+type Id = i32;
+type Id = i32;
+
+function main() -> i32 {
+    return 0;
+}

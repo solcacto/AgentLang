@@ -283,4 +283,5 @@ Module {
             },
         },
     ],
+    type_aliases: [],
 }
